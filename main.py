@@ -130,7 +130,7 @@ def is_link_allowed(text, chat_username):
 async def admin_mute_command(message: types.Message, command: CommandObject):
     # 1. Удаляем сообщение админа через 5 секунд (запускаем задачу сразу)
     await asyncio.sleep(5)
-        await msg.delete()
+    await msg.delete()
 
     # 2. Проверяем, что пишет АДМИН
     user_status = await bot.get_chat_member(message.chat.id, message.from_user.id)
@@ -410,6 +410,7 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
+
 
 
 
