@@ -8,6 +8,7 @@ from aiogram.enums import ChatMemberStatus
 from aiogram.types import LinkPreviewOptions
 from datetime import datetime, timedelta
 from aiogram.filters import Command
+from aiogram.filters import CommandObject
 from aiogram.types import ChatPermissions, InlineKeyboardMarkup, InlineKeyboardButton
 import google.generativeai as genai
 
@@ -15,6 +16,15 @@ import google.generativeai as genai
 
 BOT_TOKEN = "8400087235:AAFZubO4ijQnZCOjLZ8UulzcthDixzOqSt0"
 GOOGLE_API_KEY = "AIzaSyAIYu6GbRS0HtYlgEPLKgm1QuU8PZ15Z2E"
+
+# Фразы для админского мута (Destiny 2 style)
+ADMIN_MUTE_PHRASES = [
+    "Протокол 'Подавление' активирован. @username отправляется в стазис на {time} мин.",
+    "Судьи Испытаний Осириса вынесли приговор. @username молчит {time} мин.",
+    "Авангард лишил тебя Света на {time} мин. Подумай над поведением, @username.",
+    "Шакс недоволен. @username удален с арены на {time} мин.",
+    "Приказ командования: режим радиомолчания для @username на {time} мин."
+]
 
 # --- НОВЫЕ ФРАЗЫ ПРО ТАПИРА ---
 TAPIR_PHRASES = [
@@ -115,6 +125,87 @@ def is_link_allowed(text, chat_username):
     return True
 
 # ================= ХЕНДЛЕРЫ =================
+
+@dp.message(Command("mute"))
+async def admin_mute_command(message: types.Message, command: CommandObject):
+    # 1. Удаляем сообщение админа через 5 секунд (запускаем задачу сразу)
+    await asyncio.sleep(5)
+        await msg.delete()
+
+    # 2. Проверяем, что пишет АДМИН
+    user_status = await bot.get_chat_member(message.chat.id, message.from_user.id)
+    if user_status.status not in ["administrator", "creator"]:
+        # Если пишет не админ — игнорим или удаляем сразу
+        return
+
+    # 3. Ищем, кого мутить и на сколько
+    target_user = None
+    mute_minutes = 15 # Значение по умолчанию
+
+    # Разбираем аргументы команды (все, что написано после /mute)
+    args = command.args.split() if command.args else []
+
+    # --- Поиск времени в аргументах ---
+    for arg in args:
+        if arg.isdigit():
+            mute_minutes = int(arg)
+            break
+    
+    # --- Поиск пользователя ---
+    # Вариант А: Команда отправлена ОТВЕТОМ на сообщение (самый надежный)
+    if message.reply_to_message:
+        target_user = message.reply_to_message.from_user
+    
+    # Вариант Б: Пользователь упомянут в команде (@username)
+    elif message.entities:
+        for entity in message.entities:
+            if entity.type == "text_mention":
+                # Это если упомянули пользователя без юзернейма (ссылка-имя)
+                target_user = entity.user
+                break
+            elif entity.type == "mention":
+                # Это обычный @username. 
+                # Увы, бот не всегда может получить ID по тексту, поэтому лучше использовать Reply
+                # Но мы попробуем поискать (этот блок сложен без базы данных, поэтому лучше Reply)
+                pass
+
+    # Если не нашли кого мутить
+    if not target_user:
+        msg = await message.answer("⚠️ Чтобы выдать мут, отправь команду <b>в ответ</b> на сообщение нарушителя.\nПример: <code>/mute 30</code>")
+        await asyncio.sleep(10)
+        await msg.delete()
+        return
+
+    # Проверка: Не пытаемся ли замутить другого админа
+    target_status = await bot.get_chat_member(message.chat.id, target_user.id)
+    if target_status.status in ["administrator", "creator"]:
+        msg = await message.answer("❌ Я не могу заглушить офицера Авангарда (Админа).")
+        await asyncio.sleep(15)
+        await msg.delete()
+        return
+
+    # 4. Выдаем МУТ
+    try:
+        unmute_time = datetime.now() + timedelta(minutes=mute_minutes)
+        
+        await message.chat.restrict(
+            user_id=target_user.id,
+            permissions=ChatPermissions(can_send_messages=False),
+            until_date=unmute_time
+        )
+
+        # 5. Отправляем красивый ответ
+        username = target_user.username or target_user.first_name
+        phrase = random.choice(ADMIN_MUTE_PHRASES).format(
+            time=mute_minutes
+        ).replace("@username", f"@{username}")
+
+        await message.answer(phrase)
+
+    except Exception as e:
+        msg = await message.answer(f"Ошибка протокола: {e}")
+        await asyncio.sleep(10)
+        await msg.delete()
 
 # 1. Бан-рулетка (Мут)
 @dp.message(Command("lastword", "lw", "ластворд", "лв"))
@@ -319,6 +410,7 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
+
 
 
 
