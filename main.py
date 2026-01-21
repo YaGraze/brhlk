@@ -7,8 +7,7 @@ from aiogram import Bot, Dispatcher, types, F
 from aiogram.enums import ChatMemberStatus
 from aiogram.types import LinkPreviewOptions
 from datetime import datetime, timedelta
-from aiogram.filters import Command
-from aiogram.filters import CommandObject
+from aiogram.filters import CommandObject, Command
 from aiogram.types import ChatPermissions, InlineKeyboardMarkup, InlineKeyboardButton
 import google.generativeai as genai
 
@@ -128,9 +127,6 @@ def is_link_allowed(text, chat_username):
 
 @dp.message(Command("mute"))
 async def admin_mute_command(message: types.Message, command: CommandObject):
-    # 1. Удаляем сообщение админа через 5 секунд (запускаем задачу сразу)
-    await asyncio.sleep(5)
-    await msg.delete()
 
     # 2. Проверяем, что пишет АДМИН
     user_status = await bot.get_chat_member(message.chat.id, message.from_user.id)
@@ -410,6 +406,7 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
+
 
 
 
