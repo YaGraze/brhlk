@@ -3,18 +3,21 @@ import logging
 import re
 import os
 import random
+
 from aiogram import Bot, Dispatcher, types, F
 from aiogram.enums import ChatMemberStatus
 from aiogram.types import LinkPreviewOptions
 from datetime import datetime, timedelta
 from aiogram.filters import CommandObject, Command
-from aiogram.types import ChatPermissions, InlineKeyboardMarkup, InlineKeyboardButton
+from aiogram.types import ChatPermissions, InlineKeyboardMarkup, InlineKeyboardButton, ReactionTypeEmoji
 import google.generativeai as genai
 
 # ================= НАСТРОЙКИ =================
 
 BOT_TOKEN = "8400087235:AAFZubO4ijQnZCOjLZ8UulzcthDixzOqSt0"
 GOOGLE_API_KEY = "AIzaSyAIYu6GbRS0HtYlgEPLKgm1QuU8PZ15Z2E"
+
+PENDING_VERIFICATION = {}
 
 UNMUTE_PHRASES = [
     "Свет вернулся к @username. Можешь говорить.",
@@ -74,6 +77,8 @@ SAFE_PHRASES = [
     "Ты увернулся, как Хант с перекатом. Заряжаем ЛВ заново?"
 ]
 
+KEEP_POSTED_STICKER_ID = "CAACAgIAAxkBAAEQSpppcOtmxGDL9gH882Rg8pZrq5eXVAACXZAAAtfYYEiWmZcGWSTJ5TgE"
+
 # Слова для триггера стикера
 REFUND_KEYWORDS = ["рефанд", "refund", "refound", "возврат средств", "вернуть деньги"]
 
@@ -130,6 +135,35 @@ def is_link_allowed(text, chat_username):
         if not is_whitelisted and not is_self_chat:
             return False
     return True
+
+async def verification_timeout(chat_id: int, user_id: int, username: str):
+    """Ждет 5 минут и банит, если задача не была отменена"""
+    try:
+        # Ждем 5 минут (300 секунд)
+        await asyncio.sleep(300) 
+        
+        # Если мы здесь, значит таймер не отменили -> БАН
+        await bot.ban_chat_member(chat_id, user_id)
+        
+        # Отправляем сообщение о бане
+        msg = await bot.send_message(
+            chat_id, 
+            f"@{username} оказался одержимым Тьмой (БОТ). Изгнан в пустоту."
+        )
+        
+        # Удаляем сообщение о бане через 15 сек
+        await asyncio.sleep(15)
+        await msg.delete()
+        
+    except asyncio.CancelledError:
+        # Если задачу отменили (человек написал сообщение), ничего не делаем
+        pass
+    except Exception as e:
+        print(f"Ошибка верификации: {e}")
+    finally:
+        # Убираем из списка (если он там еще есть)
+        if user_id in PENDING_VERIFICATION:
+            del PENDING_VERIFICATION[user_id]
 
 # ================= ХЕНДЛЕРЫ =================
 
@@ -339,13 +373,30 @@ async def auto_comment_channel_post(message: types.Message):
         print(f"Не удалось оставить комментарий: {e}")
 
 @dp.message(F.new_chat_members)
-async def welcome_new_member(message: types.Message):
+async def welcome(message: types.Message):
     for user in message.new_chat_members:
-        msg = await message.answer(
-    f"Глаза выше, Страж! @{user.username or user.first_name}, добро пожаловать в чат."
-    f" Веди себя прилично, я всё вижу."
+        # Игнорируем ботов
+        if user.is_bot: continue
 
+        username = user.username or user.first_name
+        
+        # 1. Отправляем предупреждение
+        msg = await message.answer(
+            f"Глаза выше, Страж @{username}! \n"
+            f"Система безопасности чата активирована. 🛡\n"
+            f"Напиши любое сообщение в чат в течение 5 минут, чтобы подтвердить свой Свет.\n"
+            f"Иначе ты будешь забанен."
         )
+        
+        # 2. Запускаем таймер на бан
+        task = asyncio.create_task(verification_timeout(message.chat.id, user.id, username))
+        
+        # 3. Сохраняем задачу, чтобы потом её можно было отменить
+        PENDING_VERIFICATION[user.id] = task
+        
+        # Удаляем приветствие через 5 минут (чтобы не висело вечно, если человека забанят)
+        await asyncio.sleep(300)
+        await msg.delete()
 
 @dp.message()
 async def moderate_and_chat(message: types.Message):
@@ -355,7 +406,31 @@ async def moderate_and_chat(message: types.Message):
     text_lower = message.text.lower()
     username = message.from_user.username or message.from_user.first_name
     chat_username = message.chat.username
+    user_id = message.from_user.id
 
+# --- ПРОВЕРКА НОВИЧКА (ВЕРИФИКАЦИЯ) ---
+    if user_id in PENDING_VERIFICATION:
+        # 1. Достаем таймер и отменяем его (бан отменяется)
+        task = PENDING_VERIFICATION.pop(user_id)
+        task.cancel()
+        
+        # 2. Пишем об успехе
+        username = message.from_user.username or message.from_user.first_name
+        success_msg = await message.reply(
+            f"Сканирование Света завершено. Допуск получен, Страж @{username}. Веди себя прилично, я всё вижу."
+        )
+        
+        # 3. Удаляем сообщение об успехе через 15 секунд
+        asyncio.create_task(delete_later(success_msg, 15))
+    
+     # --- ПЕРСОНАЛЬНЫЙ КЛОУН ДЛЯ @galreiz ---
+    # Проверяем юзернейм (важно: в коде юзернейм пишется БЕЗ @)
+    if message.from_user.username and message.from_user.username.lower() == "galreiz":
+        try:
+            await message.react([ReactionTypeEmoji(emoji="🤡")])
+        except:
+            pass # Если не получилось (нет прав и т.д.), просто молчим
+    
     # --- БАН ---
     for word in BAN_WORDS:
         if word in text_lower:
@@ -406,7 +481,26 @@ async def moderate_and_chat(message: types.Message):
         # Отвечаем на сообщение (не удаляем сообщение пользователя, пусть все видят позор)
         await message.reply(tapir_msg)
         return # Прерываем, чтобы ИИ не отвечал следом
+        
+        # --- РЕАКЦИЯ "КЛОУН" (🤡) ---
+    # Если написали "клоун" в ответ на чье-то сообщение
+    if message.reply_to_message and "клоун" or "кловн" or "clown" or "цирк" in text_lower:
+        try:
+            # Ставим реакцию на ТО сообщение, на которое ответили
+            await message.reply_to_message.react([ReactionTypeEmoji(emoji="🤡")])
+        except Exception as e:
+            # Ошибки могут быть, если сообщение слишком старое или у бота нет прав
+            print(f"Не удалось поставить реакцию: {e}")
 
+        # --- РЕАКЦИЯ "ДЕРЖИ В КУРСЕ" ---
+    # Если ответили фразой "держи в курсе"
+    if message.reply_to_message and "держи в курсе" or "в курсе" in text_lower:
+        try:
+            # Бот отправляет стикер в ответ на ИСХОДНОЕ сообщение (которое троллят)
+            await message.reply_to_message.reply_sticker(sticker=KEEP_POSTED_STICKER_ID)
+        except Exception:
+            pass
+    
     # --- РЕАКЦИЯ НА "РЕФАНД" (СТИКЕР) ---
     # Проверяем, есть ли ключевые слова в тексте
     is_refund = any(word in text_lower for word in REFUND_KEYWORDS)
@@ -460,6 +554,7 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
+
 
 
 
