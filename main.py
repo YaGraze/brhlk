@@ -165,7 +165,7 @@ async def mute_roulette(message: types.Message):
     # --- СЦЕНАРИЙ ЖИЗНИ (ВЫПАЛО 2-100) ---
     else:
         text = random.choice(SAFE_PHRASES)
-        msg = await message.reply(f"{text} (1/4)")
+        msg = await message.reply(f"{text}")
         await asyncio.sleep(20)
         await msg.delete()
 
@@ -320,4 +320,5 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
+
 
