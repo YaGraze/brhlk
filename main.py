@@ -484,7 +484,7 @@ async def moderate_and_chat(message: types.Message):
         
         # --- РЕАКЦИЯ "КЛОУН" (🤡) ---
     # Если написали "клоун" в ответ на чье-то сообщение
-    if message.reply_to_message and "клоун" or "кловн" or "clown" or "цирк" in text_lower:
+    if message.reply_to_message and "клоун" in text_lower:
         try:
             # Ставим реакцию на ТО сообщение, на которое ответили
             await message.reply_to_message.react([ReactionTypeEmoji(emoji="🤡")])
@@ -494,7 +494,7 @@ async def moderate_and_chat(message: types.Message):
 
         # --- РЕАКЦИЯ "ДЕРЖИ В КУРСЕ" ---
     # Если ответили фразой "держи в курсе"
-    if message.reply_to_message and "держи в курсе" or "в курсе" in text_lower:
+    if message.reply_to_message and "держи в курсе" in text_lower:
         try:
             # Бот отправляет стикер в ответ на ИСХОДНОЕ сообщение (которое троллят)
             await message.reply_to_message.reply_sticker(sticker=KEEP_POSTED_STICKER_ID)
@@ -554,6 +554,7 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
+
 
 
 
