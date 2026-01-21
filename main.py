@@ -16,6 +16,14 @@ import google.generativeai as genai
 BOT_TOKEN = "8400087235:AAFZubO4ijQnZCOjLZ8UulzcthDixzOqSt0"
 GOOGLE_API_KEY = "AIzaSyAIYu6GbRS0HtYlgEPLKgm1QuU8PZ15Z2E"
 
+UNMUTE_PHRASES = [
+    "Свет вернулся к @username. Можешь говорить.",
+    "Призрак восстановил голосовой модуль @username. Связь налажена.",
+    "Стазис растаял. @username снова в эфире.",
+    "Шакс разрешил тебе вернуться на арену, @username. Не подведи.",
+    "Авангард снял ограничения с канала @username."
+]
+
 # Фразы для админского мута (Destiny 2 style)
 ADMIN_MUTE_PHRASES = [
     "Протокол 'Подавление' активирован. @username отправляется в стазис на {time} мин.",
@@ -200,6 +208,52 @@ async def admin_mute_command(message: types.Message, command: CommandObject):
 
     except Exception as e:
         msg = await message.answer(f"Ошибка протокола: {e}")
+        await asyncio.sleep(10)
+        await msg.delete()
+
+@dp.message(Command("unmute"))
+async def admin_unmute_command(message: types.Message):
+    # 1. Удаляем сообщение админа через 5 секунд
+
+    # 2. Проверяем права АДМИНА
+    user_status = await bot.get_chat_member(message.chat.id, message.from_user.id)
+    if user_status.status not in ["administrator", "creator"]:
+        return # Просто игнорим, если пишет не админ
+
+    # 3. Проверяем, есть ли Reply
+    if not message.reply_to_message:
+        msg = await message.reply("⚠️ Чтобы снять мут, сделай Reply (Ответить) на сообщение и напиши /unmute")
+        await asyncio.sleep(20)
+        await msg.delete()
+        return
+
+    target_user = message.reply_to_message.from_user
+    username = target_user.username or target_user.first_name
+
+    # 4. Снимаем мут (Возвращаем права)
+    try:
+        # Разрешаем всё
+        await message.chat.restrict(
+            user_id=target_user.id,
+            permissions=ChatPermissions(
+                can_send_messages=True,
+                can_send_media_messages=True,
+                can_send_other_messages=True,
+                can_send_polls=True,
+                can_add_web_page_previews=True
+            ),
+            # Важный момент: until_date не нужен, если мы возвращаем права,
+            # но для надежности ставим "прямо сейчас", чтобы сбросить таймер
+            until_date=datetime.now() 
+        )
+
+        # 5. Пишем ответ
+        text = random.choice(UNMUTE_PHRASES).replace("@username", f"@{username}")
+        await message.answer(text)
+
+    except Exception as e:
+        print(f"Ошибка размута: {e}")
+        msg = await message.answer("Не удалось снять мут. Возможно, я не админ?")
         await asyncio.sleep(10)
         await msg.delete()
 
@@ -406,6 +460,7 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
+
 
 
 
