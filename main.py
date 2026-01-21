@@ -13,7 +13,7 @@ import google.generativeai as genai
 
 # ================= НАСТРОЙКИ =================
 
-BOT_TOKEN = "8400087235:AAEtopPzt5sPTn0v6RDH7gdVx0W9dclTPfE"
+BOT_TOKEN = "8400087235:AAFZubO4ijQnZCOjLZ8UulzcthDixzOqSt0"
 GOOGLE_API_KEY = "AIzaSyAIYu6GbRS0HtYlgEPLKgm1QuU8PZ15Z2E"
 
 # --- НОВЫЕ ФРАЗЫ ПРО ТАПИРА ---
@@ -320,6 +320,7 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
+
 
 
 
