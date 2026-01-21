@@ -167,7 +167,7 @@ async def admin_mute_command(message: types.Message, command: CommandObject):
 
     # Если не нашли кого мутить
     if not target_user:
-        msg = await message.answer("⚠️ Чтобы выдать мут, отправь команду <b>в ответ</b> на сообщение нарушителя.\nПример: <code>/mute 30</code>")
+        msg = await message.answer("⚠️ Чтобы выдать мут, отправь команду в ответ на сообщение нарушителя.\nПример: /mute 30")
         await asyncio.sleep(10)
         await msg.delete()
         return
@@ -406,6 +406,7 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
+
 
 
 
