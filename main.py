@@ -291,7 +291,7 @@ async def report_command(message: types.Message):
         # Подтверждаем юзеру
         confirm = await message.answer("✅ Жалоба отправлена Авангарду.")
         await asyncio.sleep(10)
-            await msg.delete()
+        await msg.delete()
     except Exception as e:
         await message.answer("Ошибка отправки репорта. Проверь ADMIN_CHAT_ID.")
         print(f"Ошибка репорта: {e}")
@@ -718,6 +718,7 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
+
 
 
 
