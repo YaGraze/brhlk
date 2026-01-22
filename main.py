@@ -17,6 +17,7 @@ import google.generativeai as genai
 BOT_TOKEN = "8400087235:AAFZubO4ijQnZCOjLZ8UulzcthDixzOqSt0"
 GOOGLE_API_KEY = "AIzaSyAIYu6GbRS0HtYlgEPLKgm1QuU8PZ15Z2E"
 
+BOT_GUIDE = "https://telegra.ph/Baraholka-Bot-01-22"
 LINK_TAPIR_GUIDE = "https://t.me/destinygoods/9814" 
 
 PENDING_VERIFICATION = {}
@@ -76,7 +77,7 @@ TAPIR_PHRASES = [
 MUTE_SHORT_PHRASES = [
     "ПОДАВЛЕНИЕ! Тебя накрыло стрелой Ночного Охотника. @username молчит 15 минут.",
     "Тьма поглотила твой голос. @username отправляется в стазис-кристалл на 15 минуточек.",
-    "Слишком много болтаешь, Страж. Шакс отобрал твою клавиатуру.",
+    "Скиталец отстрелил тебе руку, Страж. Где твой призрак.",
     "Вайп! @username перепутал механику и теперь сидит в муте 15 минут.",
     "Телесто снова сломало игру... и твою возможность говорить. @username молчит.",
     "Ты пойман в ловушку Вексов. Связь потеряна на 15 минут."
@@ -211,6 +212,25 @@ async def verification_timeout(chat_id: int, user_id: int, username: str):
             del PENDING_VERIFICATION[user_id]
 
 # ================= ХЕНДЛЕРЫ =================
+
+# --- КОМАНДА /HELP ---
+@dp.message(Command("help"))
+async def help_command(message: types.Message):
+    # Создаем клавиатуру с одной кнопкой
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="🔧 Гайд по боту", url=BOT_GUIDE)]
+    ])
+    
+    # Отправляем сообщение
+    msg = await message.answer(
+        "Made by yagraze & pan1q.\nУзнать больше 👇👇",
+        reply_markup=keyboard
+    )
+    await asyncio.sleep(5)
+    await msg.delete()
+    
+    # Можно удалить сообщение юзера с командой /help, чтобы не засорять чат (опционально)
+    asyncio.create_task(delete_later(message, 5))
 
 # --- 1. ВЫЗОВ НА ДУЭЛЬ (ОТПРАВКА КНОПОК) ---
 @dp.message(Command("duel"))
@@ -764,9 +784,13 @@ async def moderate_and_chat(message: types.Message):
             
         except Exception as e:
             logging.error(f"Ошибка Gemini: {e}")
-            msg = await message.reply("Пообщайся с кем-нибудь другим, по вопросам: yagraze & pan1q.")
-            await asyncio.sleep(15)
+            tapir_kb = InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="🔧 Гайд по боту", url=BOT_GUIDE)]
+        ])
+            msg = await message.reply("Made by yagraze & pan1q.\nУзнать больше 👇👇", reply_markup=guide_kb)
+            await asyncio.sleep(5)
             await msg.delete()
+            
 # ================= ЗАПУСК =================
 
 async def main():
@@ -776,6 +800,7 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
+
 
 
 
