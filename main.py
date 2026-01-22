@@ -260,7 +260,7 @@ async def stats_command(message: types.Message):
         rank = "БОГ ЧЕРВЕЙ (Токсик) 👹"
 
     text = (
-        f"📊 ДОСЬЕ АВАНГАРДА: @{username}"
+        f"📊 ДОСЬЕ АВАНГАРДА: <a href='tg://user?id={user_id}'>{name}</a>\n"
         f"━━━━━━━━━━━━━━━━━━\n"
         f"🤬 Запретки: {stats['bad_words']}\n"
         f"🤐 Муты: {stats['mutes']}\n"
@@ -897,6 +897,7 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
+
 
 
 
