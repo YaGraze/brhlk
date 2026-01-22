@@ -3,6 +3,7 @@ import logging
 import re
 import os
 import random
+import json
 
 from aiogram import Bot, Dispatcher, types, F
 from aiogram.enums import ChatMemberStatus
@@ -232,6 +233,47 @@ async def help_command(message: types.Message):
     # Можно удалить сообщение юзера с командой /help, чтобы не засорять чат (опционально)
     asyncio.create_task(delete_later(message, 5))
 
+# --- КОМАНДА /STATS (ДОСЬЕ) ---
+@dp.message(Command("stats"))
+async def stats_command(message: types.Message):
+    # Если ответили на сообщение — показываем стату того человека
+    # Если нет — показываем стату того, кто написал команду
+    target = message.reply_to_message.from_user if message.reply_to_message else message.from_user
+    user_id = target.id
+    name = target.first_name
+
+    # Получаем данные (или нули, если данных нет)
+    stats = USER_STATS.get(str(user_id), {'mutes': 0, 'bans': 0, 'bad_words': 0, 'wins': 0, 'losses': 0})
+
+    # Вычисляем уровень токсичности
+    total_sins = stats['mutes'] + stats['bans'] + stats['bad_words']
+    
+    if total_sins < 10:
+        rank = "Чистый Страж ✨"
+    elif total_sins < 50:
+        rank = "Любитель Скверны 🦠"
+    elif total_sins < 100:
+        rank = "Аколит Улья 🧟‍♂️"
+    elif total_sins < 150:
+        rank = "Барон Презренных ☠️"
+    else:
+        rank = "БОГ ЧЕРВЕЙ (Токсик) 👹"
+
+    text = (
+        f"📊 ДОСЬЕ АВАНГАРДА: @{username}"
+        f"━━━━━━━━━━━━━━━━━━\n"
+        f"🤬 Запретки: {stats['bad_words']}\n"
+        f"🤐 Муты: {stats['mutes']}\n"
+        f"🚫 Баны: {stats['bans']}\n"
+        f"⚔️ Дуэли (W/L): {stats['wins']} / {stats['losses']}\n"
+        f"━━━━━━━━━━━━━━━━━━\n"
+        f"🏷 Статус: {rank}"
+    )
+    
+    replymsg = await message.reply(text)
+    await asyncio.sleep(30)
+    await replymsg.delete()
+
 # --- 1. ВЫЗОВ НА ДУЭЛЬ (ОТПРАВКА КНОПОК) ---
 @dp.message(Command("duel"))
 async def duel_command(message: types.Message):
@@ -327,6 +369,9 @@ async def duel_callback(callback: types.CallbackQuery):
             loser_name = att_name
             loser_id = attacker_id
             win_phrase = f"{def_name} Атаковал ультой!"
+
+        update_stat(winner_id, 'wins')
+        update_stat(loser_id, 'losses')
 
         result_text = (
             f"⚔️ Все успели сделать ставку?\n\n"
@@ -545,21 +590,22 @@ async def mute_roulette(message: types.Message):
             if duration_roll == 5:
                 # Шанс 1/5 (20%) -> 30 мин
                 mute_duration = timedelta(minutes=30)
+                update_stat(message.from_user.id, 'mutes')
                 phrase = random.choice(MUTE_CRITICAL_PHRASES).replace("@username", f"@{username}")
             else:
                 # Шанс 4/5 (80%) -> 15 МИНУТ
                 mute_duration = timedelta(minutes=15)
+                update_stat(message.from_user.id, 'mutes')
                 phrase = random.choice(MUTE_SHORT_PHRASES).replace("@username", f"@{username}")
 
             # Применяем ограничения
             unmute_time = datetime.now() + mute_duration
-            
             await message.chat.restrict(
                 user_id=message.from_user.id,
                 permissions=ChatPermissions(can_send_messages=False),
                 until_date=unmute_time
             )
-            
+            update_stat(target_user.id, 'mutes')
             # Отправляем сообщение
             await message.reply(phrase)
             
@@ -573,6 +619,52 @@ async def mute_roulette(message: types.Message):
         msg = await message.reply(f"{text}")
         await asyncio.sleep(20)
         await msg.delete()
+
+# --- ХРАНИЛИЩЕ СТАТИСТИКИ ---
+# Формат: {user_id: {'mutes': 0, 'bans': 0, 'bad_words': 0, 'wins': 0, 'losses': 0}}
+# Имя файла для сохранения
+STATS_FILE = "stats.json"
+
+# Функция загрузки статистики из файла
+def load_stats():
+    if os.path.exists(STATS_FILE):
+        try:
+            with open(STATS_FILE, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except Exception as e:
+            print(f"Ошибка загрузки статистики: {e}")
+            return {}
+    return {}
+
+# Функция сохранения статистики в файл
+def save_stats():
+    try:
+        with open(STATS_FILE, "w", encoding="utf-8") as f:
+            json.dump(USER_STATS, f, indent=4, ensure_ascii=False)
+    except Exception as e:
+        print(f"Ошибка сохранения статистики: {e}")
+
+# Инициализация: загружаем при старте
+USER_STATS = load_stats()
+
+def update_stat(user_id, stat_type):
+    """Обновляет статистику и сохраняет в файл"""
+    user_id = str(user_id) # JSON хранит ключи как строки, это важно!
+    
+    if user_id not in USER_STATS:
+        USER_STATS[user_id] = {'mutes': 0, 'bans': 0, 'bad_words': 0, 'wins': 0, 'losses': 0}
+    
+    if stat_type in USER_STATS[user_id]:
+        USER_STATS[user_id][stat_type] += 1
+        save_stats() # <--- Сохраняем сразу после изменения
+
+def update_stat(user_id, stat_type):
+    """Обновляет статистику пользователя"""
+    if user_id not in USER_STATS:
+        USER_STATS[user_id] = {'mutes': 0, 'bans': 0, 'bad_words': 0, 'wins': 0, 'losses': 0}
+    
+    if stat_type in USER_STATS[user_id]:
+        USER_STATS[user_id][stat_type] += 1
 
 PROCESSED_ALBUMS = []
 @dp.message(F.is_automatic_forward)
@@ -674,6 +766,7 @@ async def moderate_and_chat(message: types.Message):
     for word in BAN_WORDS:
         if word in text_lower:
             try:
+                update_stat(message.from_user.id, 'bans')
                 await message.delete()
                 await message.chat.ban(message.from_user.id)
                 msg = await message.answer(f"@{username} улетел в бан. Воздух стал чище.")
@@ -686,6 +779,7 @@ async def moderate_and_chat(message: types.Message):
     for word in BAD_WORDS:
         if word in text_lower:
             try:
+                update_stat(message.from_user.id, 'bad_words')
                 await message.delete()
                 msg = await message.answer(f"@{username}, рот с мылом помой, у тебя скверна изо рта лезет.")
                 await asyncio.sleep(15)
@@ -803,6 +897,7 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
+
 
 
 
