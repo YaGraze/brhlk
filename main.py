@@ -213,25 +213,26 @@ async def verification_timeout(chat_id: int, user_id: int, username: str):
 # --- 1. ВЫЗОВ НА ДУЭЛЬ (ОТПРАВКА КНОПОК) ---
 @dp.message(Command("duel"))
 async def duel_command(message: types.Message):
-    # Проверка на ответ
     if not message.reply_to_message:
         msg = await message.reply("⚔️ Чтобы вызвать на дуэль, ответь на сообщение соперника командой /duel.")
-        await asyncio.sleep(10)
+        await asyncio.sleep(5)
         await msg.delete()
         return
 
     attacker = message.from_user
     defender = message.reply_to_message.from_user
 
-    # Проверки на ботов и себя
     if defender.is_bot or defender.id == attacker.id:
         msg = await message.reply("Найди себе достойного противника.")
         await asyncio.sleep(5)
         await msg.delete()
         return
 
-    # Создаем кнопки с "секретными данными" внутри (ID игроков)
-    # Формат данных: "действие|id_атакующего|id_защитника"
+    # --- ПОЛУЧЕНИЕ ИМЕН (@username) ---
+    # Если есть username, берем его, иначе берем имя
+    att_name = f"@{attacker.username}" if attacker.username else attacker.first_name
+    def_name = f"@{defender.username}" if defender.username else defender.first_name
+
     buttons = [
         [
             InlineKeyboardButton(text="🔫 Принять вызов", callback_data=f"duel_accept|{attacker.id}|{defender.id}"),
@@ -241,10 +242,10 @@ async def duel_command(message: types.Message):
     keyboard = InlineKeyboardMarkup(inline_keyboard=buttons)
 
     await message.answer(
-        f"🔥 ГОРНИЛО: Приватный матч!\n\n"
-        f"🛡 СТРАЖ №1: @{attacker.first_name}\n"
-        f"🎯 СТРАЖ №2: @{defender.first_name}\n\n"
-        f"@{defender.first_name}, ты принимаешь бой? Проигравший вылетает на орбиту (Kick).",
+        f"🔥 ГОРНИЛО: ПРИВАТНЫЙ МАТЧ!\n\n"
+        f"🛡 Страж №1: {att_name}\n"
+        f"🎯 Страж №2: {def_name}\n\n"
+        f"{def_name}, ты принимаешь бой? Проигравший вылетает на орбиту (Kick).",
         reply_markup=keyboard
     )
 
@@ -256,7 +257,6 @@ async def duel_callback(callback: types.CallbackQuery):
     attacker_id = int(data_parts[1])
     defender_id = int(data_parts[2])
 
-    # Проверка прав нажатия
     if callback.from_user.id != defender_id:
         if callback.from_user.id == attacker_id:
             await callback.answer("Жди решения соперника, че торопишься?", show_alert=True)
@@ -264,64 +264,65 @@ async def duel_callback(callback: types.CallbackQuery):
             await callback.answer("Это не твоя разборка, Страж.", show_alert=True)
         return
 
-    # Получаем актуальные данные о пользователях (Имена/Юзернеймы)
+    # Получаем данные о пользователях заново, чтобы достать username
     try:
-        attacker_member = await bot.get_chat_member(callback.message.chat.id, attacker_id)
-        defender_member = await bot.get_chat_member(callback.message.chat.id, defender_id)
+        att_member = await bot.get_chat_member(callback.message.chat.id, attacker_id)
+        def_member = await bot.get_chat_member(callback.message.chat.id, defender_id)
         
-        attacker_name = attacker_member.user.first_name
-        defender_name = defender_member.user.first_name
+        att_user = att_member.user
+        def_user = def_member.user
+
+        # Логика: Если есть юзернейм -> @username. Если нет -> Имя.
+        att_name = f"@{att_user.username}" if att_user.username else att_user.first_name
+        def_name = f"@{def_user.username}" if def_user.username else def_user.first_name
+
     except Exception:
-        # Если вдруг не удалось получить (человек вышел из чата), ставим заглушки
-        attacker_name = "Страж №1"
-        defender_name = "Страж №2"
+        # Если не смогли получить (редкая ошибка), ставим заглушки
+        att_name = "Страж №1"
+        def_name = "Страж №2"
 
     # --- ОТКАЗ ---
     if action == "duel_decline":
         await callback.message.edit_text(
             f"🏳️ ДУЭЛЬ ОТМЕНЕНА\n\n"
-            f"@{defender_name} отказался рисковать.\n"
-            f"@{attacker_name} убирает оружие.",
+            f"{def_name} отказался рисковать.\n"
+            f"{att_name} убирает оружие.",
             reply_markup=None
         )
         return
 
     # --- БОЙ ---
     if action == "duel_accept":
-        # Рандом 50/50
         attacker_wins = random.choice([True, False])
         
         if attacker_wins:
-            winner_name = attacker_name
-            loser_name = defender_name
+            winner_name = att_name
+            loser_name = def_name
             loser_id = defender_id
-            win_phrase = f"@{attacker_name} делает точный хедшот с Пикового Туза!"
+            win_phrase = f"{att_name} делает невероятный флик в голову с Пикового Туза!"
         else:
-            winner_name = defender_name
-            loser_name = attacker_name
+            winner_name = def_name
+            loser_name = att_name
             loser_id = attacker_id
-            win_phrase = f"@{defender_name} атакует ультой!"
+            win_phrase = f"{def_name} Атаковал ультой!"
 
         result_text = (
-            f"⚔️ Все успели сделать ставки?\n\n"
+            f"⚔️ Все успели сделать ставку?\n\n"
             f"{win_phrase}\n"
-            f"💀 @{loser_name} разлетается на частицы Света."
+            f"💀 {loser_name} разлетается на частицы Света."
         )
 
         await callback.message.edit_text(result_text, reply_markup=None)
 
-        # КИК ПРОИГРАВШЕГО
+        # КИК
         try:
-            # Проверяем админа перед киком
-            loser_member_check = await bot.get_chat_member(callback.message.chat.id, loser_id)
-            if loser_member_check.status in ["administrator", "creator"]:
-                msg = await callback.message.answer(f"@{loser_name} проиграл, но Админов кикать нельзя. Коррупция Авангарда!")
-                await asyncio.sleep(10)
-                await msg.delete()
+            loser_check = await bot.get_chat_member(callback.message.chat.id, loser_id)
+            if loser_check.status in ["administrator", "creator"]:
+                await callback.message.answer(f"{loser_name} проиграл, но Админов кикать нельзя. Коррупция Авангарда!")
             else:
                 await bot.ban_chat_member(callback.message.chat.id, loser_id)
                 await bot.unban_chat_member(callback.message.chat.id, loser_id)
-                await callback.message.answer(f"@{loser_name} теряет соединение с сервером... снова Тапир?")
+                await callback.message.answer(f"{loser_name} теряет соединение с чатом... снова Тапир?")
         except Exception as e:
             await callback.message.answer(f"Ошибка кика: {e}")
 
@@ -357,9 +358,9 @@ async def report_command(message: types.Message):
     # Текст отчета
     report_text = (
         f"🚨 СИГНАЛ ТРЕВОГИ (РЕПОРТ)\n"
-        f"🕵️‍♂️ <b>Донёс:</b> @{reporter}\n"
-        f"💀 <b>Нарушил:</b> @{violator}\n\n"
-        f"👉 <a href='{msg_link}'>ПЕРЕЙТИ К СООБЩЕНИЮ</a> (Клик)"
+        f"🕵️‍♂️ Донёс: @{reporter}\n"
+        f"💀 Нарушил: @{violator}\n\n"
+        f"👉 {msg_link}"
     )
 
     try:
@@ -768,6 +769,7 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
+
 
 
 
