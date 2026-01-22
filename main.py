@@ -259,7 +259,7 @@ async def duel_callback(callback: types.CallbackQuery):
     # Проверка прав нажатия
     if callback.from_user.id != defender_id:
         if callback.from_user.id == attacker_id:
-            await callback.answer("Жди решения соперника, че торопишься?.", show_alert=True)
+            await callback.answer("Жди решения соперника, че торопишься?", show_alert=True)
         else:
             await callback.answer("Это не твоя разборка, Страж.", show_alert=True)
         return
@@ -619,35 +619,6 @@ async def moderate_and_chat(message: types.Message):
     chat_username = message.chat.username
     user_id = message.from_user.id
 
- # --- АНТИ-ФЛУД (ОДИНАКОВЫЕ СООБЩЕНИЯ) ---
-    # Получаем данные юзера из кэша. Если нет — создаем.
-    user_data = FLOOD_CACHE.get(user_id, {'text': '', 'ids': []})
-    
-    # Если текст совпадает с предыдущим
-    if user_data['text'] == text_content:
-        user_data['ids'].append(message.message_id)
-        
-        # Если сообщений 3 или больше
-        if len(user_data['ids']) >= 3:
-            # Нам нужно удалить ВСЕ предыдущие, кроме ПОСЛЕДНЕГО (текущего)
-            # ids[:-1] берет все элементы списка КРОМЕ последнего
-            msgs_to_delete = user_data['ids'][:-1]
-            
-            try:
-                # Удаляем скопом
-                await bot.delete_messages(message.chat.id, msgs_to_delete)
-                
-                # Оставляем в списке только последнее сообщение (текущее)
-                user_data['ids'] = [message.message_id]
-            except Exception as e:
-                print(f"Ошибка удаления флуда: {e}")
-    else:
-        # Если текст новый — сбрасываем счетчик
-        user_data = {'text': text_content, 'ids': [message.message_id]}
-    
-    # Сохраняем обратно в кэш
-    FLOOD_CACHE[user_id] = user_data
-
 # --- ПРОВЕРКА НОВИЧКА (ВЕРИФИКАЦИЯ) ---
     if user_id in PENDING_VERIFICATION:
         # 1. Достаем таймер и отменяем его (бан отменяется)
@@ -797,6 +768,7 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
+
 
 
 
