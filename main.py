@@ -210,10 +210,10 @@ async def verification_timeout(chat_id: int, user_id: int, username: str):
 
 # ================= ХЕНДЛЕРЫ =================
 
-# --- 1. ДУЭЛЬ (ГОРНИЛО) - С КИКОМ ---
-@dp.message(Command("duel", "дуэль"))
+# --- 1. ВЫЗОВ НА ДУЭЛЬ (ОТПРАВКА КНОПОК) ---
+@dp.message(Command("duel"))
 async def duel_command(message: types.Message):
-    # 1. Проверки (ответ на сообщение, не бот, не сам себя)
+    # Проверка на ответ
     if not message.reply_to_message:
         msg = await message.reply("⚔️ Чтобы вызвать на дуэль, ответь на сообщение соперника командой /duel.")
         await asyncio.sleep(10)
@@ -223,45 +223,109 @@ async def duel_command(message: types.Message):
     attacker = message.from_user
     defender = message.reply_to_message.from_user
 
+    # Проверки на ботов и себя
     if defender.is_bot or defender.id == attacker.id:
-        msg = await message.reply("Найди себе достойного противника, а не себя или бота.")
+        msg = await message.reply("Найди себе достойного противника.")
         await asyncio.sleep(5)
         await msg.delete()
         return
 
-    # 2. Механика боя (50/50)
-    winner, loser = random.choice([(attacker, defender), (defender, attacker)])
+    # Создаем кнопки с "секретными данными" внутри (ID игроков)
+    # Формат данных: "действие|id_атакующего|id_защитника"
+    buttons = [
+        [
+            InlineKeyboardButton(text="🔫 Принять вызов", callback_data=f"duel_accept|{attacker.id}|{defender.id}"),
+            InlineKeyboardButton(text="🏳️ Сбежать", callback_data=f"duel_decline|{attacker.id}|{defender.id}")
+        ]
+    ]
+    keyboard = InlineKeyboardMarkup(inline_keyboard=buttons)
 
-    # 3. Текст боя (Destiny Style)
     await message.answer(
-        f"🔥 ГОРНИЛО: Приватный матч\n"
-        f"🛡 @{attacker.first_name} VS 🛡 @{defender.first_name}\n\n"
-        f"💥 БАХ! @{winner.first_name} делает точный выстрел из 'Пикового Туза'!\n"
-        f"💀 @{loser.first_name} теряет соединение с сервером... Кажется, Тапир?.\n\n"
-        f"Наказание: Возвращение на Орбиту (Kick)."
+        f"🔥 ГОРНИЛО: Приватный матч!\n\n"
+        f"🛡 СТРАЖ №1: @{attacker.first_name}\n"
+        f"🎯 СТРАЖ №2: @{defender.first_name}\n\n"
+        f"@{defender.first_name}, ты принимаешь бой? Проигравший вылетает на орбиту (Kick).",
+        reply_markup=keyboard
     )
 
-    # 4. Кик проигравшего
-    try:
-        # Проверяем, не админ ли проигравший
-        user_status = await bot.get_chat_member(message.chat.id, loser.id)
-        if user_status.status in ["administrator", "creator"]:
-            msg = await message.answer(f"@{loser.first_name} проиграл, но у него читы Авангарда (Админ). Кикнуть невозможно.")
-            await asyncio.sleep(15)
-            await msg.delete()
-        else:
-            # ТРЮК С КИКОМ: Сначала баним, потом сразу разбаниваем.
-            # Человек вылетает из чата, но может зайти обратно по ссылке.
-            await bot.ban_chat_member(message.chat.id, loser.id)
-            await bot.unban_chat_member(message.chat.id, loser.id)
-            
-            await message.answer(f"Призрак уже воскрешает @{loser.first_name}... где-то за пределами чата.")
-            
-    except Exception as e:
-        print(f"Ошибка кика: {e}")
-        await message.answer("Хотел кикнуть, но Евгений забрал мои права (Проверь право бота 'Банить участников').")
+# --- 2. ОБРАБОТКА КНОПОК (ЛОГИКА БОЯ) ---
+@dp.callback_query(F.data.startswith("duel_"))
+async def duel_callback(callback: types.CallbackQuery):
+    data_parts = callback.data.split("|")
+    action = data_parts[0]
+    attacker_id = int(data_parts[1])
+    defender_id = int(data_parts[2])
 
-# --- 2. РЕПОРТ (ЖАЛОБА) ---
+    # Проверка прав нажатия
+    if callback.from_user.id != defender_id:
+        if callback.from_user.id == attacker_id:
+            await callback.answer("Жди решения соперника, че торопишься?.", show_alert=True)
+        else:
+            await callback.answer("Это не твоя разборка, Страж.", show_alert=True)
+        return
+
+    # Получаем актуальные данные о пользователях (Имена/Юзернеймы)
+    try:
+        attacker_member = await bot.get_chat_member(callback.message.chat.id, attacker_id)
+        defender_member = await bot.get_chat_member(callback.message.chat.id, defender_id)
+        
+        attacker_name = attacker_member.user.first_name
+        defender_name = defender_member.user.first_name
+    except Exception:
+        # Если вдруг не удалось получить (человек вышел из чата), ставим заглушки
+        attacker_name = "Страж №1"
+        defender_name = "Страж №2"
+
+    # --- ОТКАЗ ---
+    if action == "duel_decline":
+        await callback.message.edit_text(
+            f"🏳️ ДУЭЛЬ ОТМЕНЕНА\n\n"
+            f"@{defender_name} отказался рисковать.\n"
+            f"@{attacker_name} убирает оружие.",
+            reply_markup=None
+        )
+        return
+
+    # --- БОЙ ---
+    if action == "duel_accept":
+        # Рандом 50/50
+        attacker_wins = random.choice([True, False])
+        
+        if attacker_wins:
+            winner_name = attacker_name
+            loser_name = defender_name
+            loser_id = defender_id
+            win_phrase = f"@{attacker_name} делает точный хедшот с Пикового Туза!"
+        else:
+            winner_name = defender_name
+            loser_name = attacker_name
+            loser_id = attacker_id
+            win_phrase = f"@{defender_name} атакует ультой!"
+
+        result_text = (
+            f"⚔️ Все успели сделать ставки?\n\n"
+            f"{win_phrase}\n"
+            f"💀 @{loser_name} разлетается на частицы Света."
+        )
+
+        await callback.message.edit_text(result_text, reply_markup=None)
+
+        # КИК ПРОИГРАВШЕГО
+        try:
+            # Проверяем админа перед киком
+            loser_member_check = await bot.get_chat_member(callback.message.chat.id, loser_id)
+            if loser_member_check.status in ["administrator", "creator"]:
+                msg = await callback.message.answer(f"@{loser_name} проиграл, но Админов кикать нельзя. Коррупция Авангарда!")
+                await asyncio.sleep(10)
+                await msg.delete()
+            else:
+                await bot.ban_chat_member(callback.message.chat.id, loser_id)
+                await bot.unban_chat_member(callback.message.chat.id, loser_id)
+                await callback.message.answer(f"@{loser_name} теряет соединение с сервером... снова Тапир?")
+        except Exception as e:
+            await callback.message.answer(f"Ошибка кика: {e}")
+
+# --- 2. РЕПОРТ (С ПРАВИЛЬНОЙ ССЫЛКОЙ ДЛЯ ЧАСТНЫХ ЧАТОВ) ---
 @dp.message(Command("report"))
 async def report_command(message: types.Message):
 
@@ -275,27 +339,42 @@ async def report_command(message: types.Message):
     reporter = message.from_user.username or message.from_user.first_name
     violator = reported_msg.from_user.username or reported_msg.from_user.first_name
 
-    # Ссылка на сообщение (работает в публичных чатах)
-    msg_link = f"https://t.me/{message.chat.username}/{reported_msg.message_id}" if message.chat.username else "Ссылка недоступна (частный чат)"
+    # --- ГЕНЕРАЦИЯ ССЫЛКИ ---
+    if message.chat.username:
+        # Если у чата есть публичный юзернейм (t.me/chatname)
+        msg_link = f"https://t.me/{message.chat.username}/{reported_msg.message_id}"
+    else:
+        # Если чат частный (Private Supergroup)
+        # ID выглядит как -1001234567890. Для ссылки нужно убрать "-100".
+        chat_id_str = str(message.chat.id)
+        if chat_id_str.startswith("-100"):
+            clean_id = chat_id_str[4:] # Отрезаем первые 4 символа (-100)
+        else:
+            clean_id = chat_id_str # На всякий случай, если ID другой
+            
+        msg_link = f"https://t.me/c/{clean_id}/{reported_msg.message_id}"
 
+    # Текст отчета
     report_text = (
-        f"🚨 НОВЫЙ РЕПОРТ!\n"
-        f"👤 Стукач: @{reporter}\n"
-        f"💀 Нарушитель: @{violator}\n"
-        f"🔗 <a href='{msg_link}'>Перейти к сообщению</a>"
+        f"🚨 СИГНАЛ ТРЕВОГИ (РЕПОРТ)\n"
+        f"🕵️‍♂️ <b>Донёс:</b> @{reporter}\n"
+        f"💀 <b>Нарушил:</b> @{violator}\n\n"
+        f"👉 <a href='{msg_link}'>ПЕРЕЙТИ К СООБЩЕНИЮ</a> (Клик)"
     )
 
     try:
-        # Отправляем в админский чат
-        await bot.send_message(ADMIN_CHAT_ID, report_text)
-        # Подтверждаем юзеру
+        # Отправляем только текст с красивой ссылкой
+        await bot.send_message(chat_id=ADMIN_CHAT_ID, text=report_text)
+        
+        # Подтверждение юзеру
         confirm = await message.answer("✅ Жалоба отправлена Авангарду.")
-        await asyncio.sleep(10)
+        await asyncio.sleep(5)
         await msg.delete()
+        
     except Exception as e:
-        await message.answer("Ошибка отправки репорта. Проверь ADMIN_CHAT_ID.")
+        # Если бот не в админском чате или ID неверен
         print(f"Ошибка репорта: {e}")
-
+        
 @dp.message(Command("mute"))
 async def admin_mute_command(message: types.Message, command: CommandObject):
 
@@ -718,6 +797,7 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
+
 
 
 
