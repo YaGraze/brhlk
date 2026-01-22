@@ -19,6 +19,26 @@ GOOGLE_API_KEY = "AIzaSyAIYu6GbRS0HtYlgEPLKgm1QuU8PZ15Z2E"
 
 PENDING_VERIFICATION = {}
 
+# --- ID АДМИНСКОГО ЧАТА (Группы, куда кидать репорты) ---
+# Узнать ID можно через бота @getmyid_bot (добавь его в админский чат)
+# ID группы всегда начинается с минуса, например -100123456789
+ADMIN_CHAT_ID = -1003376406623  # <--- ЗАМЕНИ НА СВОЙ
+CHAT_ID = -1002129048580
+
+# --- ФАКТЫ ИЗ ЛОРА (Для тишины) ---
+LORE_FACTS = [
+    "Шакс никогда не снимает шлем. Говорят, он в нем даже моется.",
+    "Скиталец готовит рагу из Вексов. На вкус как батарейки, но питательно.",
+    "Кабал взрывают планеты просто потому, что они загораживают им вид.",
+    "Эрис Морн потеряла свои глаза в Яме, но теперь видит лучше тебя.",
+    "Сайнт-14 однажды убил Келла Эликсни ударом головы. Буквально.",
+    "Призраки ищут своих Стражей веками. Твой нашел тебя в куче мусора. Символично.",
+    "Завалу больше всего бесит, когда Стражи танцуют на столе переговоров.",
+    "Телесто ломало игру так часто, что у него появился свой разум.",
+    "В Башне есть скрытый клуб для Охотников, но Титанам вход воспрещен.",
+    "Кейд-6 был должен кучу денег половине Солнечной системы. Смерть списала долги."
+]
+
 UNMUTE_PHRASES = [
     "Свет вернулся к @username. Можешь говорить.",
     "Призрак восстановил голосовой модуль @username. Связь налажена.",
@@ -64,7 +84,7 @@ MUTE_CRITICAL_PHRASES = [
     "КРИТИЧЕСКИЙ УРОН! @username словил хедшот с ульты. Молчишь 30 МИНУТ.",
     "Вайп! Ты подвел команду. @username отправляется в мут на 30 МИНУТ.",
     "Архитекторы решили тебя уничтожить. @username замучен чате на 30 минут.",
-    "Это был Голд Ган. @username, увидимся через полчаса.",
+    "Это был Голден Ган. @username, увидимся через полчаса.",
     "Что с лицом, страж? @username, помолчи полчасика."
 ]
 
@@ -119,6 +139,29 @@ dp = Dispatcher()
 
 # ================= ФУНКЦИИ ПРОВЕРКИ (Те же самые) =================
 
+async def check_silence_loop():
+    """Фоновая задача: проверяет тишину в чате"""
+    global LAST_MESSAGE_TIME
+    while True:
+        # Проверяем раз в 5 минут
+        await asyncio.sleep(300) 
+        
+        # Если прошло больше 1 часа (3600 секунд) с последнего сообщения
+        if (datetime.now() - LAST_MESSAGE_TIME).total_seconds() > 3600:
+            # Берем случайный факт
+            fact = random.choice(LORE_FACTS)
+            
+            try:
+                # ЗАМЕНИ НА ID ТВОЕГО ОСНОВНОГО ЧАТА (тот же, что и ADMIN_CHAT_ID или другой)
+                TARGET_CHAT_ID = CHAT_ID 
+                
+                await bot.send_message(TARGET_CHAT_ID, f"📢 <b>Минутка Лора:</b>\n{fact}")
+                
+                # Обновляем время, чтобы не спамить фактами каждую минуту
+                LAST_MESSAGE_TIME = datetime.now()
+            except Exception as e:
+                print(f"Ошибка отправки факта: {e}")
+
 def extract_urls(text):
     url_regex = r"(?P<url>https?://[^\s]+)"
     return re.findall(url_regex, text)
@@ -166,6 +209,92 @@ async def verification_timeout(chat_id: int, user_id: int, username: str):
             del PENDING_VERIFICATION[user_id]
 
 # ================= ХЕНДЛЕРЫ =================
+
+# --- 1. ДУЭЛЬ (ГОРНИЛО) - С КИКОМ ---
+@dp.message(Command("duel", "дуэль"))
+async def duel_command(message: types.Message):
+    # 1. Проверки (ответ на сообщение, не бот, не сам себя)
+    if not message.reply_to_message:
+        msg = await message.reply("⚔️ Чтобы вызвать на дуэль, ответь на сообщение соперника командой /duel.")
+        await asyncio.sleep(10)
+        await msg.delete()
+        return
+
+    attacker = message.from_user
+    defender = message.reply_to_message.from_user
+
+    if defender.is_bot or defender.id == attacker.id:
+        msg = await message.reply("Найди себе достойного противника, а не себя или бота.")
+        await asyncio.sleep(5)
+        await msg.delete()
+        return
+
+    # 2. Механика боя (50/50)
+    winner, loser = random.choice([(attacker, defender), (defender, attacker)])
+
+    # 3. Текст боя (Destiny Style)
+    await message.answer(
+        f"🔥 ГОРНИЛО: Приватный матч\n"
+        f"🛡 @{attacker.first_name} VS 🛡 @{defender.first_name}\n\n"
+        f"💥 БАХ! @{winner.first_name} делает точный выстрел из 'Пикового Туза'!\n"
+        f"💀 @{loser.first_name} теряет соединение с сервером... Кажется, Тапир?.\n\n"
+        f"Наказание: Возвращение на Орбиту (Kick)."
+    )
+
+    # 4. Кик проигравшего
+    try:
+        # Проверяем, не админ ли проигравший
+        user_status = await bot.get_chat_member(message.chat.id, loser.id)
+        if user_status.status in ["administrator", "creator"]:
+            msg = await message.answer(f"@{loser.first_name} проиграл, но у него читы Авангарда (Админ). Кикнуть невозможно.")
+            await asyncio.sleep(15)
+            await msg.delete()
+        else:
+            # ТРЮК С КИКОМ: Сначала баним, потом сразу разбаниваем.
+            # Человек вылетает из чата, но может зайти обратно по ссылке.
+            await bot.ban_chat_member(message.chat.id, loser.id)
+            await bot.unban_chat_member(message.chat.id, loser.id)
+            
+            await message.answer(f"Призрак уже воскрешает @{loser.first_name}... где-то за пределами чата.")
+            
+    except Exception as e:
+        print(f"Ошибка кика: {e}")
+        await message.answer("Хотел кикнуть, но Евгений забрал мои права (Проверь право бота 'Банить участников').")
+
+# --- 2. РЕПОРТ (ЖАЛОБА) ---
+@dp.message(Command("report"))
+async def report_command(message: types.Message):
+
+    if not message.reply_to_message:
+        msg = await message.reply("⚠️ Используй команду в ответ на сообщение нарушителя.")
+        await asyncio.sleep(5)
+        await msg.delete()
+        return
+
+    reported_msg = message.reply_to_message
+    reporter = message.from_user.username or message.from_user.first_name
+    violator = reported_msg.from_user.username or reported_msg.from_user.first_name
+
+    # Ссылка на сообщение (работает в публичных чатах)
+    msg_link = f"https://t.me/{message.chat.username}/{reported_msg.message_id}" if message.chat.username else "Ссылка недоступна (частный чат)"
+
+    report_text = (
+        f"🚨 НОВЫЙ РЕПОРТ!\n"
+        f"👤 Стукач: @{reporter}\n"
+        f"💀 Нарушитель: @{violator}\n"
+        f"🔗 <a href='{msg_link}'>Перейти к сообщению</a>"
+    )
+
+    try:
+        # Отправляем в админский чат
+        await bot.send_message(ADMIN_CHAT_ID, report_text)
+        # Подтверждаем юзеру
+        confirm = await message.answer("✅ Жалоба отправлена Авангарду.")
+        await asyncio.sleep(10)
+            await msg.delete()
+    except Exception as e:
+        await message.answer("Ошибка отправки репорта. Проверь ADMIN_CHAT_ID.")
+        print(f"Ошибка репорта: {e}")
 
 @dp.message(Command("mute"))
 async def admin_mute_command(message: types.Message, command: CommandObject):
@@ -400,6 +529,9 @@ async def welcome(message: types.Message):
 
 @dp.message()
 async def moderate_and_chat(message: types.Message):
+    global LAST_MESSAGE_TIME
+    LAST_MESSAGE_TIME = datetime.now()
+    
     if not message.text or message.from_user.id == bot.id:
         return
 
@@ -407,6 +539,35 @@ async def moderate_and_chat(message: types.Message):
     username = message.from_user.username or message.from_user.first_name
     chat_username = message.chat.username
     user_id = message.from_user.id
+
+ # --- АНТИ-ФЛУД (ОДИНАКОВЫЕ СООБЩЕНИЯ) ---
+    # Получаем данные юзера из кэша. Если нет — создаем.
+    user_data = FLOOD_CACHE.get(user_id, {'text': '', 'ids': []})
+    
+    # Если текст совпадает с предыдущим
+    if user_data['text'] == text_content:
+        user_data['ids'].append(message.message_id)
+        
+        # Если сообщений 3 или больше
+        if len(user_data['ids']) >= 3:
+            # Нам нужно удалить ВСЕ предыдущие, кроме ПОСЛЕДНЕГО (текущего)
+            # ids[:-1] берет все элементы списка КРОМЕ последнего
+            msgs_to_delete = user_data['ids'][:-1]
+            
+            try:
+                # Удаляем скопом
+                await bot.delete_messages(message.chat.id, msgs_to_delete)
+                
+                # Оставляем в списке только последнее сообщение (текущее)
+                user_data['ids'] = [message.message_id]
+            except Exception as e:
+                print(f"Ошибка удаления флуда: {e}")
+    else:
+        # Если текст новый — сбрасываем счетчик
+        user_data = {'text': text_content, 'ids': [message.message_id]}
+    
+    # Сохраняем обратно в кэш
+    FLOOD_CACHE[user_id] = user_data
 
 # --- ПРОВЕРКА НОВИЧКА (ВЕРИФИКАЦИЯ) ---
     if user_id in PENDING_VERIFICATION:
@@ -552,10 +713,12 @@ async def moderate_and_chat(message: types.Message):
 
 async def main():
     print("Бот настроен карать.")
+    asyncio.create_task(check_silence_loop())
     await dp.start_polling(bot)
 
 if __name__ == "__main__":
     asyncio.run(main())
+
 
 
 
