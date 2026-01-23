@@ -181,14 +181,28 @@ def save_stats():
 # Загружаем при старте
 USER_STATS = load_stats()
 
-def get_rank(points):
-    """Определяет ранг Горнила по очкам"""
-    if points < 50: return "Страж"
-    if points < 150: return "Удаль"
-    if points < 350: return "Отвага"
-    if points < 700: return "Героизм"
-    if points < 1500: return "Величие"
-    return "Легенда"
+def get_rank_info(points):
+    """
+    Возвращает (название ранга, сколько очков до следующего).
+    Если 0 очков до следующего - значит макс ранг.
+    """
+    # Список: (Порог очков для СЛЕДУЮЩЕГО ранга, Название ТЕКУЩЕГО ранга)
+    # Пример: Если очков < 50, то ранг "Страж", след. уровень на 50
+    tiers = [
+        (50, "Страж"),
+        (150, "Удаль"),
+        (350, "Отвага"),
+        (700, "Героизм"),
+        (1500, "Величие"),
+        (float('inf'), "Легенда")
+    ]
+    
+    for threshold, title in tiers:
+        if points < threshold:
+            needed = int(threshold - points)
+            return title, needed
+            
+    return "Легенда", 0
 
 def update_duel_stats(user_id, is_winner):
     """Обновляет статистику дуэли: победа/поражение и очки"""
@@ -275,12 +289,12 @@ async def stats_command(message: types.Message):
     user_id = str(target.id)
     name = target.first_name
 
-    # Получаем данные (или нули)
+    # Получаем данные
     data = USER_STATS.get(user_id, {'wins': 0, 'losses': 0, 'points': 0})
     
-    wins = data['wins']
-    losses = data['losses']
-    points = data['points']
+    wins = data.get('wins', 0)
+    losses = data.get('losses', 0)
+    points = data.get('points', 0)
     
     # Считаем Винрейт
     total_games = wins + losses
@@ -289,12 +303,20 @@ async def stats_command(message: types.Message):
     else:
         winrate = 0.0
 
-    rank_title = get_rank(points)
+    # Получаем ранг и сколько осталось
+    rank_title, points_needed = get_rank_info(points)
+    
+    # Формируем строку про следующий ранг
+    if points_needed > 0:
+        next_rank_str = f"🔜 <b>До повышения:</b> {points_needed} очков"
+    else:
+        next_rank_str = "👑 <b>Максимальный ранг</b>"
 
     text = (
-        f"📊 ДОСЬЕ ГОРНИЛА: <a href='tg://user?id={user_id}'>{name}</a>\n"
+        f"📊 ДОСЬЕ ГОРНИЛА: {du}\n"
         f"━━━━━━━━━━━━━━━━━━\n"
         f"🏆 Ранг: {rank_title} ({points} очков)\n"
+        f"{next_rank_str}\n"
         f"⚔️ Матчей: {total_games}\n"
         f"✅ Побед: {wins}\n"
         f"❌ Поражений: {losses}\n"
@@ -304,7 +326,7 @@ async def stats_command(message: types.Message):
     )
     
     msg = await message.reply(text)
-    asyncio.create_task(delete_later(msg, 30))
+    asyncio.create_task(delete_later(msg, 60))
 
 # --- КОМАНДА /HELP ---
 @dp.message(Command("help"))
@@ -334,7 +356,7 @@ async def duel_command(message: types.Message):
         msg = await message.reply("Найди себе достойного противника.")
         asyncio.create_task(delete_later(msg, 5))
         return
-
+        
     att_name = f"@{attacker.username}" if attacker.username else attacker.first_name
     def_name = f"@{defender.username}" if defender.username else defender.first_name
 
@@ -349,8 +371,8 @@ async def duel_command(message: types.Message):
     await message.answer(
         f"🔥 ГОРНИЛО: ПРИВАТНЫЙ МАТЧ!\n\n"
         f"🔴 Претендент: {att_name}\n"
-        f"🔵 Цель:</b> {def_name}\n\n"
-        f"📜 Правила: 100 HP. Пошаговый бой. Проигравший вылетает из чата.\n"
+        f"🔵 Цель: {def_name}\n\n"
+        f"📜 Правила: 100 HP. Пошаговый бой.\n"
         f"🔥 GG: 12% шанс (Ваншот)\n"
         f"♠️ Ace: 50% шанс (-34 HP)\n"
         f"{def_name}, ты принимаешь бой?",
@@ -482,6 +504,7 @@ async def duel_handler(callback: types.CallbackQuery):
         else:
             log_msg = f"💨 Промах! {shooter['name']} промазал с {weapon_name}."
 
+         # Проверка на победу
         if target["hp"] <= 0:
             # === ОБНОВЛЕНИЕ СТАТИСТИКИ (JSON) ===
             update_duel_stats(shooter['id'], is_winner=True)
@@ -492,19 +515,11 @@ async def duel_handler(callback: types.CallbackQuery):
             await callback.message.edit_text(
                 f"🏆 МАТЧ ЗАВЕРШЕН!\n\n"
                 f"{log_msg}\n\n"
-                f"💀 {target['name']} повержен и отправляется на орбиту (Kicked).",
+                f"💀 {target['name']} повержен. Шакс объявляет нокаут.",
                 reply_markup=None
             )
-            try:
-                loser_status = await bot.get_chat_member(callback.message.chat.id, target['id'])
-                if loser_status.status in ["administrator", "creator"]:
-                    msg = await callback.message.answer(f"{target['name']} проиграл, но Админов кикать нельзя.")
-                    asyncio.create_task(delete_later(msg, 15))
-                else:
-                    await bot.ban_chat_member(callback.message.chat.id, target['id'])
-                    await bot.unban_chat_member(callback.message.chat.id, target['id'])
-            except Exception as e:
-                print(f"Ошибка кика: {e}")
+            
+            # --- ЗДЕСЬ РАНЬШЕ БЫЛ КОД КИКА (try...except), ТЕПЕРЬ ЕГО НЕТ ---
             
             await callback.answer()
             return
@@ -863,4 +878,5 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
+
 
