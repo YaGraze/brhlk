@@ -3,6 +3,7 @@ import logging
 import re
 import os
 import random
+import json
 
 from aiogram import Bot, Dispatcher, types, F, BaseMiddleware
 from aiogram.enums import ChatMemberStatus
@@ -19,14 +20,21 @@ GOOGLE_API_KEY = "AIzaSyAIYu6GbRS0HtYlgEPLKgm1QuU8PZ15Z2E"
 
 BOT_GUIDE = "https://telegra.ph/Baraholka-Bot-01-22"
 LINK_TAPIR_GUIDE = "https://t.me/destinygoods/9814" 
-ACTIVE_DUELS = {}
+
+# Файлы
+STATS_FILE = "stats.json"
+
+# Глобальные переменные
 PENDING_VERIFICATION = {}
+ACTIVE_DUELS = {}   
+USER_STATS = {} # Загружается из файла
+PROCESSED_ALBUMS = []
 LAST_MESSAGE_TIME = datetime.now()
 
-# --- ID АДМИНСКОГО ЧАТА (Группы, куда кидать репорты) ---
-ADMIN_CHAT_ID = -1003376406623
+ADMIN_CHAT_ID = -1003376406623 
 CHAT_ID = -1002129048580
 
+# --- СПИСКИ И ФРАЗЫ ---
 LORE_FACTS = [
     "Шакс никогда не снимает шлем. Говорят, он в нем даже моется.",
     "Скиталец готовит рагу из Вексов. На вкус как батарейки, но питательно.",
@@ -104,13 +112,15 @@ BAD_WORDS = ["лгбт", "цп", "казино", "цп", "child porn", "cp", "з
     "шишки", "гашиш", "купить скорость", "чурка", "хач", "ниггер", "хохол", "кацап", 
     "москаль", "свинособак", "черномаз", "нигга", "nigga", "nigger", "hohol", 
     "магазин 24/7", "hydra", "kraken", "убейся", "выпей яду", "роскомнадзорнись", "мамку ебал", "Путин", "Зеленский", "война", "либераха", "гейропа", "кокс", "фашист"] 
+
 BAN_WORDS = ["заработок в интернете", "быстрый заработок",
-    "арбитраж крипты", "мамкин инвестор", "Лучший заработок с доходом",
+    "арбитраж крипты", "мамкин инвестор",
     "раскрутка счета", "Требуется команда из 5 человек для интересного проекта на 2-4 часа. Оплата начинается от 8.000 руб. Пишите в личные сообщения для уточнения деталей."]
+
 ALLOWED_DOMAINS = ["youtube.com", "youtu.be", "google.com", "yandex.ru", "github.com", "x.com", "reddit.com", "t.me", "discord.com", "vk.com", "d2gunsmith.com", "light.gg", "d2foundry.gg", "destinyitemmanager.com", "bungie.net", "d2armorpicker.com"]
 
-LINK_RULES = "https://telegra.ph/Pravila-kanala-i-chata-09-18"
-LINK_CHAT = "https://t.me/+Uaa0ALuvIfs1MzYy"
+LINK_RULES = "https://telegra.ph/Pravila-kanala-i-chata-09-18" 
+LINK_CHAT = "https://t.me/+Uaa0ALuvIfs1MzYy" 
 
 genai.configure(api_key=GOOGLE_API_KEY)
 model = genai.GenerativeModel('gemini-1.5-flash') 
@@ -122,8 +132,6 @@ AI_SYSTEM_PROMPT = (
     "Если спрашивают чушь — отвечай в стиле Скитальца (Drifter) или лорда Шакса. "
     "Будь кратким, циничным и остроумным. Обращайся на 'ты', называй их Стражами."
 )
-
-# ================= ИНИЦИАЛИЗАЦИЯ =================
 
 logging.basicConfig(level=logging.INFO)
 bot = Bot(token=BOT_TOKEN)
@@ -147,15 +155,63 @@ class AntiFloodMiddleware(BaseMiddleware):
                             await event.bot.delete_message(chat_id=event.chat.id, message_id=last_msg['msg_id'])
                         except Exception:
                             pass
-                
                 self.flood_cache[user_id] = {'text': text, 'msg_id': event.message_id}
-        
         return await handler(event, data)
 
-# ================= ФУНКЦИИ ПРОВЕРКИ (Те же самые) =================
+# ================= ФУНКЦИИ СТАТИСТИКИ (JSON) =================
+
+def load_stats():
+    """Загрузка статистики из файла"""
+    if os.path.exists(STATS_FILE):
+        try:
+            with open(STATS_FILE, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except Exception:
+            return {}
+    return {}
+
+def save_stats():
+    """Сохранение статистики"""
+    try:
+        with open(STATS_FILE, "w", encoding="utf-8") as f:
+            json.dump(USER_STATS, f, indent=4, ensure_ascii=False)
+    except Exception as e:
+        print(f"Ошибка сохранения статистики: {e}")
+
+# Загружаем при старте
+USER_STATS = load_stats()
+
+def get_rank(points):
+    """Определяет ранг Горнила по очкам"""
+    if points < 50: return "Страж"
+    if points < 150: return "Удаль"
+    if points < 350: return "Отвага"
+    if points < 700: return "Героизм"
+    if points < 1500: return "Величие"
+    return "Легенда"
+
+def update_duel_stats(user_id, is_winner):
+    """Обновляет статистику дуэли: победа/поражение и очки"""
+    user_id = str(user_id) # JSON ключи всегда строки
+    
+    # Создаем запись, если нет
+    if user_id not in USER_STATS:
+        USER_STATS[user_id] = {'wins': 0, 'losses': 0, 'points': 0}
+    
+    if is_winner:
+        USER_STATS[user_id]['wins'] += 1
+        USER_STATS[user_id]['points'] += 25 # +25 за победу
+    else:
+        USER_STATS[user_id]['losses'] += 1
+        USER_STATS[user_id]['points'] -= 10 # -10 за поражение
+        if USER_STATS[user_id]['points'] < 0:
+            USER_STATS[user_id]['points'] = 0 # Не уходим в минус
+            
+    save_stats()
+
+# ================= ОБЩИЕ ФУНКЦИИ =================
 
 async def delete_later(message: types.Message, delay: int):
-    """Ждет delay секунд и удаляет сообщение"""
     await asyncio.sleep(delay)
     try:
         await message.delete()
@@ -163,19 +219,14 @@ async def delete_later(message: types.Message, delay: int):
         pass
 
 async def check_silence_loop():
-    """Фоновая задача: проверяет тишину в чате"""
     global LAST_MESSAGE_TIME
     while True:
         await asyncio.sleep(300) 
-        
         if (datetime.now() - LAST_MESSAGE_TIME).total_seconds() > 3600:
             fact = random.choice(LORE_FACTS)
-            
             try:
                 TARGET_CHAT_ID = CHAT_ID 
-                
                 await bot.send_message(TARGET_CHAT_ID, f"📢 <b>Минутка Лора:</b>\n{fact}")
-                
                 LAST_MESSAGE_TIME = datetime.now()
             except Exception as e:
                 print(f"Ошибка отправки факта: {e}")
@@ -198,20 +249,14 @@ def is_link_allowed(text, chat_username):
     return True
 
 async def verification_timeout(chat_id: int, user_id: int, username: str):
-    """Ждет 5 минут и банит, если задача не была отменена"""
     try:
         await asyncio.sleep(300) 
-        
         await bot.ban_chat_member(chat_id, user_id)
-        
         msg = await bot.send_message(
             chat_id, 
             f"@{username} оказался одержимым Тьмой (БОТ). Изгнан в пустоту."
         )
-        
-        await asyncio.sleep(15)
-        await msg.delete()
-        
+        asyncio.create_task(delete_later(msg, 15))
     except asyncio.CancelledError:
         pass
     except Exception as e:
@@ -222,13 +267,51 @@ async def verification_timeout(chat_id: int, user_id: int, username: str):
 
 # ================= ХЕНДЛЕРЫ =================
 
+# --- КОМАНДА /STATS (РАНГ ГОРНИЛА) ---
+@dp.message(Command("stats"))
+async def stats_command(message: types.Message):
+    # Если ответили на сообщение — показываем стату того человека
+    target = message.reply_to_message.from_user if message.reply_to_message else message.from_user
+    user_id = str(target.id)
+    name = target.first_name
+
+    # Получаем данные (или нули)
+    data = USER_STATS.get(user_id, {'wins': 0, 'losses': 0, 'points': 0})
+    
+    wins = data['wins']
+    losses = data['losses']
+    points = data['points']
+    
+    # Считаем Винрейт
+    total_games = wins + losses
+    if total_games > 0:
+        winrate = round((wins / total_games) * 100, 1)
+    else:
+        winrate = 0.0
+
+    rank_title = get_rank(points)
+
+    text = (
+        f"📊 ДОСЬЕ ГОРНИЛА: <a href='tg://user?id={user_id}'>{name}</a>\n"
+        f"━━━━━━━━━━━━━━━━━━\n"
+        f"🏆 Ранг: {rank_title} ({points} очков)\n"
+        f"⚔️ Матчей: {total_games}\n"
+        f"✅ Побед: {wins}\n"
+        f"❌ Поражений: {losses}\n"
+        f"📈 Винрейт: {winrate}%\n"
+        f"━━━━━━━━━━━━━━━━━━\n"
+        f"Шакс наблюдает за тобой."
+    )
+    
+    msg = await message.reply(text)
+    asyncio.create_task(delete_later(msg, 30))
+
 # --- КОМАНДА /HELP ---
 @dp.message(Command("help"))
 async def help_command(message: types.Message):
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="🔧 Гайд по боту", url=BOT_GUIDE)]
     ])
-    
     msg = await message.answer(
         "Made by yagraze & pan1q.\nУзнать больше 👇👇",
         reply_markup=keyboard
@@ -236,11 +319,7 @@ async def help_command(message: types.Message):
     asyncio.create_task(delete_later(msg, 15))
     asyncio.create_task(delete_later(message, 5))
 
-# ==========================================
-#        НОВАЯ СИСТЕМА ДУЭЛЕЙ (RPG)
-# ==========================================
-
-# --- 1. ВЫЗОВ НА ДУЭЛЬ ---
+# --- DUEL RPG (100 HP) ---
 @dp.message(Command("duel"))
 async def duel_command(message: types.Message):
     if not message.reply_to_message:
@@ -259,7 +338,6 @@ async def duel_command(message: types.Message):
     att_name = f"@{attacker.username}" if attacker.username else attacker.first_name
     def_name = f"@{defender.username}" if defender.username else defender.first_name
 
-    # Кнопки принятия вызова
     buttons = [
         [
             InlineKeyboardButton(text="🔫 Принять вызов", callback_data=f"duel_start|{attacker.id}|{defender.id}"),
@@ -270,92 +348,111 @@ async def duel_command(message: types.Message):
 
     await message.answer(
         f"🔥 ГОРНИЛО: ПРИВАТНЫЙ МАТЧ!\n\n"
-        f"🔴 Страж №1: {att_name}\n"
-        f"🔵 Страж №2: {def_name}\n\n"
-        f"Правила: 100 HP. Пошаговый бой. Проигравший вылетает из чата.\n"
+        f"🔴 Претендент: {att_name}\n"
+        f"🔵 Цель:</b> {def_name}\n\n"
+        f"📜 Правила: 100 HP. Пошаговый бой. Проигравший вылетает из чата.\n"
         f"🔥 GG: 12% шанс (Ваншот)\n"
-        f"♠️ Ace: 50% шанс (-34 HP)\n\n"
+        f"♠️ Ace: 50% шанс (-34 HP)\n"
         f"{def_name}, ты принимаешь бой?",
         reply_markup=keyboard
     )
 
-# --- 2. ЛОГИКА БОЯ (ОБРАБОТЧИК КНОПОК) ---
+async def update_duel_message(callback: types.CallbackQuery, game_id):
+    if game_id not in ACTIVE_DUELS:
+        await callback.answer("Игра не найдена (перезагрузка бота?)", show_alert=True)
+        try: await callback.message.delete()
+        except: pass
+        return
+
+    game = ACTIVE_DUELS[game_id]
+    
+    def get_hp_bar(hp):
+        blocks = int(hp / 10) 
+        return "▓" * blocks + "░" * (10 - blocks)
+
+    p1 = game["p1"]
+    p2 = game["p2"]
+    
+    current_turn_name = p1["name"] if game["turn"] == p1["id"] else p2["name"]
+
+    text = (
+        f"⚔️ ДУЭЛЬ: РАУНД ИДЕТ\n\n"
+        f"🔴 {p1['name']}: {p1['hp']} HP\n"
+        f"[{get_hp_bar(p1['hp'])}]\n\n"
+        f"🔵 {p2['name']}: {p2['hp']} HP\n"
+        f"[{get_hp_bar(p2['hp'])}]\n\n"
+        f"📜 Лог: {game['log']}\n\n"
+        f"👉 Сейчас ходит: {current_turn_name}"
+    )
+
+    buttons = [
+        [
+            InlineKeyboardButton(text="🔥 GG (12% / Kill)", callback_data="duel_gg"),
+            InlineKeyboardButton(text="♠️ Ace (50% / -34HP)", callback_data="duel_ace")
+        ]
+    ]
+    keyboard = InlineKeyboardMarkup(inline_keyboard=buttons)
+    try:
+        await callback.message.edit_text(text, reply_markup=keyboard)
+    except Exception:
+        pass
+
 @dp.callback_query(F.data.startswith("duel_"))
 async def duel_handler(callback: types.CallbackQuery):
     data_parts = callback.data.split("|")
     action = data_parts[0]
     
-    # --- ОТКАЗ ОТ ДУЭЛИ ---
     if action == "duel_decline":
-        # Проверяем, что нажал именно защитник
         defender_id = int(data_parts[2])
         if callback.from_user.id != defender_id:
             await callback.answer("Не лезь, это не твой бой!", show_alert=True)
             return
-            
-        msg = await callback.message.edit_text(f"🏳️ Дуэль отменена. Соперник улетел на орбиту.")
-        asyncio.create_task(delete_later(msg, 30))
+        await callback.message.edit_text(f"🏳️ Дуэль отменена. Соперник сбежал на орбиту.")
         return
 
-    # --- НАЧАЛО БОЯ (ИНИЦИАЛИЗАЦИЯ) ---
     if action == "duel_start":
         attacker_id = int(data_parts[1])
         defender_id = int(data_parts[2])
-
         if callback.from_user.id != defender_id:
             await callback.answer("Жди решения соперника!", show_alert=True)
             return
 
-        # Инициализируем игру
         game_id = callback.message.message_id
-        
-        # Получаем красивые имена
         try:
             att_m = await bot.get_chat_member(callback.message.chat.id, attacker_id)
             def_m = await bot.get_chat_member(callback.message.chat.id, defender_id)
             att_name = f"@{att_m.user.username}" if att_m.user.username else att_m.user.first_name
             def_name = f"@{def_m.user.username}" if def_m.user.username else def_m.user.first_name
         except:
-            att_name, def_name = "Страж №1", "Страж №2"
+            att_name, def_name = "Игрок 1", "Игрок 2"
 
-        # Кто ходит первым? (Рандом)
         current_turn = random.choice([attacker_id, defender_id])
-
         ACTIVE_DUELS[game_id] = {
             "p1": {"id": attacker_id, "name": att_name, "hp": 100},
             "p2": {"id": defender_id, "name": def_name, "hp": 100},
             "turn": current_turn,
-            "log": "🗣 Шакс: Матч начался! Покажите, на что вы способны!"
+            "log": "🗣 Шакс: Матч начался! Покажите, на что способны!"
         }
-
         await update_duel_message(callback, game_id)
+        await callback.answer()
         return
 
-    # --- ВЫСТРЕЛ (ХОД ИГРОКА) ---
     if action in ["duel_gg", "duel_ace"]:
         game_id = callback.message.message_id
+        
         if game_id not in ACTIVE_DUELS:
-            msg = await callback.answer("Матч не найден (Бот был перезагружен).", show_alert=True)
-            asyncio.create_task(delete_later(msg, 15))
-            try:
-                await callback.message.delete()
+            await callback.answer("Матч не найден (Бот был перезагружен).", show_alert=True)
+            try: await callback.message.delete()
             except: pass
-            return
-        # Если игра не найдена (например, перезагрузили бота)
-        if game_id not in ACTIVE_DUELS:
-            await callback.answer("Этот матч уже устарел.", show_alert=True)
-            await callback.message.delete()
             return
 
         game = ACTIVE_DUELS[game_id]
         shooter_id = callback.from_user.id
 
-        # Проверка: чей ход?
         if shooter_id != game["turn"]:
             await callback.answer("Сейчас не твой ход!", show_alert=True)
             return
 
-        # Определяем, кто стрелок, кто жертва
         if shooter_id == game["p1"]["id"]:
             shooter = game["p1"]
             target = game["p2"]
@@ -363,25 +460,21 @@ async def duel_handler(callback: types.CallbackQuery):
             shooter = game["p2"]
             target = game["p1"]
 
-        # Логика оружия
         damage = 0
         hit = False
         weapon_name = ""
 
         if action == "duel_gg":
             weapon_name = "🔥 Голден Ган"
-            # 20% шанс
-            if random.randint(1, 100) <= 12:
+            if random.randint(1, 100) <= 12: # 12%
                 hit = True
                 damage = 100
         elif action == "duel_ace":
             weapon_name = "♠️ Пиковый Туз"
-            # 65% шанс
-            if random.randint(1, 100) <= 50:
+            if random.randint(1, 100) <= 50: # 50%
                 hit = True
                 damage = 34
 
-        # Обработка попадания
         if hit:
             target["hp"] -= damage
             if target["hp"] < 0: target["hp"] = 0
@@ -389,11 +482,12 @@ async def duel_handler(callback: types.CallbackQuery):
         else:
             log_msg = f"💨 Промах! {shooter['name']} промазал с {weapon_name}."
 
-        # Проверка на победу
         if target["hp"] <= 0:
-            # КОНЕЦ ИГРЫ
+            # === ОБНОВЛЕНИЕ СТАТИСТИКИ (JSON) ===
+            update_duel_stats(shooter['id'], is_winner=True)
+            update_duel_stats(target['id'], is_winner=False)
             
-            del ACTIVE_DUELS[game_id] # Удаляем игру из памяти
+            del ACTIVE_DUELS[game_id]
             
             await callback.message.edit_text(
                 f"🏆 МАТЧ ЗАВЕРШЕН!\n\n"
@@ -401,8 +495,6 @@ async def duel_handler(callback: types.CallbackQuery):
                 f"💀 {target['name']} повержен и отправляется на орбиту (Kicked).",
                 reply_markup=None
             )
-            
-            # Кик проигравшего
             try:
                 loser_status = await bot.get_chat_member(callback.message.chat.id, target['id'])
                 if loser_status.status in ["administrator", "creator"]:
@@ -413,78 +505,37 @@ async def duel_handler(callback: types.CallbackQuery):
                     await bot.unban_chat_member(callback.message.chat.id, target['id'])
             except Exception as e:
                 print(f"Ошибка кика: {e}")
+            
+            await callback.answer()
             return
 
-        # Если никто не умер — следующий ход
-        game["turn"] = target["id"] # Передаем ход
+        game["turn"] = target["id"]
         game["log"] = log_msg
         
         await update_duel_message(callback, game_id)
+        await callback.answer()
 
-# --- ВСПОМОГАТЕЛЬНАЯ ФУНКЦИЯ ДЛЯ ОБНОВЛЕНИЯ ЭКРАНА БОЯ ---
-async def update_duel_message(callback: types.CallbackQuery, game_id):
-    game = ACTIVE_DUELS[game_id]
-    
-    # Рисуем полоски ХП
-    def get_hp_bar(hp):
-        blocks = int(hp / 10) # 100 hp = 10 блоков
-        return "▓" * blocks + "░" * (10 - blocks)
-
-    p1 = game["p1"]
-    p2 = game["p2"]
-    
-    # Определяем имя того, кто сейчас ходит
-    current_turn_name = p1["name"] if game["turn"] == p1["id"] else p2["name"]
-
-    text = (
-        f"⚔️ ДУЭЛЬ: РАУНД ИДЕТ\n\n"
-        f"🔴 {p1['name']}: {p1['hp']} HP\n"
-        f"[{get_hp_bar(p1['hp'])}]\n\n"
-        f"🔵 {p2['name']}: {p2['hp']} HP\n"
-        f"[{get_hp_bar(p2['hp'])}]\n\n"
-        f"📜 История: {game['log']}\n\n"
-        f"👉 Сейчас ходит: {current_turn_name}"
-    )
-
-    # Кнопки оружия
-    buttons = [
-        [
-            InlineKeyboardButton(text="🔥 GG (12% / Kill)", callback_data="duel_gg"),
-            InlineKeyboardButton(text="♠️ Ace (50% / -34HP)", callback_data="duel_ace")
-        ]
-    ]
-    keyboard = InlineKeyboardMarkup(inline_keyboard=buttons)
-
-    try:
-        await callback.message.edit_text(text, reply_markup=keyboard)
-    except Exception:
-        # Если текст не изменился, просто игнорируем ошибку, это не страшно
-        pass
-
-# --- 2. РЕПОРТ (С ПРАВИЛЬНОЙ ССЫЛКОЙ ДЛЯ ЧАСТНЫХ ЧАТОВ) ---
+# --- РЕПОРТ ---
 @dp.message(Command("report"))
 async def report_command(message: types.Message):
 
     if not message.reply_to_message:
         msg = await message.reply("⚠️ Используй команду в ответ на сообщение нарушителя.")
-        await asyncio.sleep(5)
-        await msg.delete()
+        asyncio.create_task(delete_later(msg, 5))
         return
 
     reported_msg = message.reply_to_message
     reporter = message.from_user.username or message.from_user.first_name
     violator = reported_msg.from_user.username or reported_msg.from_user.first_name
 
-    # --- ГЕНЕРАЦИЯ ССЫЛКИ ---
     if message.chat.username:
         msg_link = f"https://t.me/{message.chat.username}/{reported_msg.message_id}"
     else:
         chat_id_str = str(message.chat.id)
         if chat_id_str.startswith("-100"):
-            clean_id = chat_id_str[4:]
+            clean_id = chat_id_str[4:] 
         else:
-            clean_id = chat_id_str
-            
+            clean_id = chat_id_str 
         msg_link = f"https://t.me/c/{clean_id}/{reported_msg.message_id}"
 
     report_text = (
@@ -496,37 +547,31 @@ async def report_command(message: types.Message):
 
     try:
         await bot.send_message(chat_id=ADMIN_CHAT_ID, text=report_text)
-        
         confirm = await message.answer("✅ Жалоба отправлена Авангарду.")
-        await asyncio.sleep(5)
-        await msg.delete()
+        asyncio.create_task(delete_later(confirm, 5))
+        asyncio.create_task(delete_later(message, 1))
         
     except Exception as e:
         print(f"Ошибка репорта: {e}")
-        
+
+# --- MUTE (ADMIN) ---
 @dp.message(Command("mute"))
 async def admin_mute_command(message: types.Message, command: CommandObject):
-
-    # 2. Проверяем, что пишет АДМИН
     user_status = await bot.get_chat_member(message.chat.id, message.from_user.id)
     if user_status.status not in ["administrator", "creator"]:
         return
 
-    # 3. Ищем, кого мутить и на сколько
     target_user = None
-    mute_minutes = 15
+    mute_minutes = 15 
 
     args = command.args.split() if command.args else []
-
     for arg in args:
         if arg.isdigit():
             mute_minutes = int(arg)
             break
     
-    # --- Поиск пользователя ---
     if message.reply_to_message:
         target_user = message.reply_to_message.from_user
-    
     elif message.entities:
         for entity in message.entities:
             if entity.type == "text_mention":
@@ -537,52 +582,44 @@ async def admin_mute_command(message: types.Message, command: CommandObject):
 
     if not target_user:
         msg = await message.answer("⚠️ Чтобы выдать мут, отправь команду в ответ на сообщение нарушителя.\nПример: /mute 30")
-        await asyncio.sleep(10)
-        await msg.delete()
+        asyncio.create_task(delete_later(msg, 10))
         return
 
-    # Проверка: Не пытаемся ли замутить другого админа
     target_status = await bot.get_chat_member(message.chat.id, target_user.id)
     if target_status.status in ["administrator", "creator"]:
         msg = await message.answer("❌ Я не могу заглушить офицера Авангарда (Админа).")
-        await asyncio.sleep(15)
-        await msg.delete()
+        asyncio.create_task(delete_later(msg, 15))
         return
 
-    # 4. Выдаем МУТ
     try:
         unmute_time = datetime.now() + timedelta(minutes=mute_minutes)
-        
         await message.chat.restrict(
             user_id=target_user.id,
             permissions=ChatPermissions(can_send_messages=False),
             until_date=unmute_time
         )
 
-        # 5. Отправляем красивый ответ
         username = target_user.username or target_user.first_name
         phrase = random.choice(ADMIN_MUTE_PHRASES).format(
             time=mute_minutes
         ).replace("@username", f"@{username}")
-
         await message.answer(phrase)
+        asyncio.create_task(delete_later(message, 5))
 
     except Exception as e:
         msg = await message.answer(f"Ошибка протокола: {e}")
-        await asyncio.sleep(10)
-        await msg.delete()
+        asyncio.create_task(delete_later(msg, 10))
 
+# --- UNMUTE (ADMIN) ---
 @dp.message(Command("unmute"))
 async def admin_unmute_command(message: types.Message):
-
     user_status = await bot.get_chat_member(message.chat.id, message.from_user.id)
     if user_status.status not in ["administrator", "creator"]:
-        return
+        return 
 
     if not message.reply_to_message:
         msg = await message.reply("⚠️ Чтобы снять мут, сделай Reply (Ответить) на сообщение и напиши /unmute")
-        await asyncio.sleep(20)
-        await msg.delete()
+        asyncio.create_task(delete_later(msg, 10))
         return
 
     target_user = message.reply_to_message.from_user
@@ -600,23 +637,21 @@ async def admin_unmute_command(message: types.Message):
             ),
             until_date=datetime.now() 
         )
-
         text = random.choice(UNMUTE_PHRASES).replace("@username", f"@{username}")
         await message.answer(text)
+        asyncio.create_task(delete_later(message, 5))
 
     except Exception as e:
         print(f"Ошибка размута: {e}")
         msg = await message.answer("Не удалось снять мут. Возможно, я не админ?")
-        await asyncio.sleep(10)
-        await msg.delete()
+        asyncio.create_task(delete_later(msg, 10))
 
-# 1. Бан-рулетка (Мут)
+# --- LASTWORD (ROULETTE) ---
 @dp.message(Command("lastword", "lw", "ластворд", "лв"))
 async def mute_roulette(message: types.Message):
     bullet = random.randint(1, 4) 
     username = message.from_user.username or message.from_user.first_name
 
-    # --- СЦЕНАРИЙ МУТА (ВЫПАЛО 1) ---
     if bullet == 1:
         user_status = await bot.get_chat_member(message.chat.id, message.from_user.id)
         if user_status.status in ["administrator", "creator"]:
@@ -624,9 +659,7 @@ async def mute_roulette(message: types.Message):
             return
 
         try:
-            # 2. ОПРЕДЕЛЯЕМ ДЛИТЕЛЬНОСТЬ МУТА (РАНДОМ 1 к 5)
             duration_roll = random.randint(1, 5)
-            
             if duration_roll == 5:
                 mute_duration = timedelta(minutes=30)
                 phrase = random.choice(MUTE_CRITICAL_PHRASES).replace("@username", f"@{username}")
@@ -635,35 +668,28 @@ async def mute_roulette(message: types.Message):
                 phrase = random.choice(MUTE_SHORT_PHRASES).replace("@username", f"@{username}")
 
             unmute_time = datetime.now() + mute_duration
-            
             await message.chat.restrict(
                 user_id=message.from_user.id,
                 permissions=ChatPermissions(can_send_messages=False),
                 until_date=unmute_time
             )
-            
             await message.reply(phrase)
             
         except Exception as e:
             await message.reply("Хотел выдать мут, но не хватает прав админа! Проверь настройки.")
             print(f"Ошибка мута: {e}")
 
-    # --- СЦЕНАРИЙ ЖИЗНИ ---
     else:
         text = random.choice(SAFE_PHRASES)
         msg = await message.reply(f"{text}")
-        await asyncio.sleep(20)
-        await msg.delete()
+        asyncio.create_task(delete_later(msg, 20))
 
-PROCESSED_ALBUMS = []
 @dp.message(F.is_automatic_forward)
 async def auto_comment_channel_post(message: types.Message):
     if message.media_group_id:
         if message.media_group_id in PROCESSED_ALBUMS:
-            return
-        
+            return 
         PROCESSED_ALBUMS.append(message.media_group_id)
-        
         if len(PROCESSED_ALBUMS) > 100:
             PROCESSED_ALBUMS.pop(0)
     try:
@@ -675,7 +701,6 @@ async def auto_comment_channel_post(message: types.Message):
             ]
         ])
         await message.reply(f"Оскорбления, реклама, спам, размещение ссылок, размещение недостоверной информации, выяснения отношений — Предупреждение/Мут.\nПовторное несоблюдение правил - БАН.\n\nПо вопросам рекламы/покупки: @llRGaming.\nПо вопросам касательно бота: @yaGraze.", reply_markup=keyboard)
-        print(f"Оставил комментарий к посту: {message.message_id}")
     except Exception as e:
         print(f"Не удалось оставить комментарий: {e}")
 
@@ -693,13 +718,9 @@ async def welcome(message: types.Message):
             f"Иначе ты будешь забанен.\n"
             f"(Если ты будешь допущен - Я отвечу на твое сообщение и сниму таймер)"
         )
-        
         task = asyncio.create_task(verification_timeout(message.chat.id, user.id, username))
-        
         PENDING_VERIFICATION[user.id] = task
-        
-        await asyncio.sleep(300)
-        await msg.delete()
+        asyncio.create_task(delete_later(msg, 300))
 
 @dp.message()
 async def moderate_and_chat(message: types.Message):
@@ -714,7 +735,7 @@ async def moderate_and_chat(message: types.Message):
     chat_username = message.chat.username
     user_id = message.from_user.id
 
-# --- ПРОВЕРКА НОВИЧКА (ВЕРИФИКАЦИЯ) ---
+    # --- ПРОВЕРКА НОВИЧКА ---
     if user_id in PENDING_VERIFICATION:
         task = PENDING_VERIFICATION.pop(user_id)
         task.cancel()
@@ -723,12 +744,9 @@ async def moderate_and_chat(message: types.Message):
         success_msg = await message.reply(
             f"Сканирование Света завершено. Допуск получен, Страж @{username}. Веди себя прилично, я всё вижу."
         )
-        await asyncio.sleep(300)
-        await success_msg.delete()
-        
         asyncio.create_task(delete_later(success_msg, 15))
     
-# --- ПЕРСОНАЛЬНЫЙ КЛОУН ДЛЯ @galreiz (Шанс 1 к 3) ---
+    # --- GALREIZ ---
     if message.from_user.username and message.from_user.username.lower() == "galreiz":
         if random.randint(1, 3) == 1:
             try:
@@ -743,8 +761,7 @@ async def moderate_and_chat(message: types.Message):
                 await message.delete()
                 await message.chat.ban(message.from_user.id)
                 msg = await message.answer(f"@{username} улетел в бан. Воздух стал чище.")
-                await asyncio.sleep(15)
-                await msg.delete()
+                asyncio.create_task(delete_later(msg, 15))
                 return
             except: pass
 
@@ -754,8 +771,7 @@ async def moderate_and_chat(message: types.Message):
             try:
                 await message.delete()
                 msg = await message.answer(f"@{username}, рот с мылом помой, у тебя скверна изо рта лезет.")
-                await asyncio.sleep(15)
-                await msg.delete()
+                asyncio.create_task(delete_later(msg, 15))
                 return
             except: pass
 
@@ -764,43 +780,40 @@ async def moderate_and_chat(message: types.Message):
         try:
             await message.delete()
             msg = await message.answer(f"@{username}, ссылки на чужие помойки запрещены. Не засоряй сеть Вексов.")
-            await asyncio.sleep(15)
-            await msg.delete()
+            asyncio.create_task(delete_later(msg, 15))
             return
         except: pass
 
-    # --- ПАСХАЛКА: vpn ---
+    # --- VPN ---
     if "vpn" in text_lower or "впн" in text_lower:
         vpn_msg = random.choice(VPN_PHRASES)
         await message.reply(vpn_msg)
-        return
+        return 
 
-     # --- ПАСХАЛКА: ТАПИР (TAPIR) ---
+     # --- ТАПИР ---
     if "тапир" in text_lower or "tapir" in text_lower:
         tapir_msg = random.choice(TAPIR_PHRASES)
-        
         tapir_kb = InlineKeyboardMarkup(inline_keyboard=[
             [InlineKeyboardButton(text="🔧 Гайд: обход тапира", url=LINK_TAPIR_GUIDE)]
         ])
-        
         await message.reply(tapir_msg, reply_markup=tapir_kb)
         return 
         
-        # --- РЕАКЦИЯ "КЛОУН" (🤡) ---
+    # --- КЛОУН ---
     if message.reply_to_message and "клоун" in text_lower:
         try:
             await message.reply_to_message.react([ReactionTypeEmoji(emoji="🤡")])
         except Exception as e:
             print(f"Не удалось поставить реакцию: {e}")
 
-        # --- РЕАКЦИЯ "ДЕРЖИ В КУРСЕ" ---
+    # --- ДЕРЖИ В КУРСЕ ---
     if message.reply_to_message and "держи в курсе" in text_lower:
         try:
             await message.reply_to_message.reply_sticker(sticker=KEEP_POSTED_STICKER_ID)
         except Exception:
             pass
     
-    # --- РЕАКЦИЯ НА "РЕФАНД" (СТИКЕР) ---
+    # --- РЕФАНД ---
     is_refund = any(word in text_lower for word in REFUND_KEYWORDS)
     if is_refund:
         try:
@@ -809,7 +822,7 @@ async def moderate_and_chat(message: types.Message):
             await message.reply(f"⚠️ Не могу отправить стикер. Ошибка:\n{e}")
         return
 
-    # --- ИИ ОТВЕТЫ (GEMINI) ---
+    # --- ИИ ---
     bot_info = await bot.get_me()
     is_reply_to_bot = message.reply_to_message and message.reply_to_message.from_user.id == bot.id
     is_mention = f"@{bot_info.username}" in message.text
@@ -818,8 +831,7 @@ async def moderate_and_chat(message: types.Message):
         clean_text = message.text.replace(f"@{bot_info.username}", "").strip()
         if not clean_text:
             msg = await message.answer("Ну и чё ты меня тегнул? Я не люблю общаться.")
-            await asyncio.sleep(15)
-            await msg.delete()
+            asyncio.create_task(delete_later(msg, 5))
             return
 
         try:
@@ -831,7 +843,6 @@ async def moderate_and_chat(message: types.Message):
             ])
             
             response = await chat.send_message_async(clean_text)
-            
             await message.reply(response.text)
             
         except Exception as e:
@@ -852,7 +863,4 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
-
-
-
 
