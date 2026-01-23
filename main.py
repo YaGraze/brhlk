@@ -308,9 +308,9 @@ async def stats_command(message: types.Message):
     
     # Формируем строку про следующий ранг
     if points_needed > 0:
-        next_rank_str = f"🔜 <b>До повышения:</b> {points_needed} очков"
+        next_rank_str = f"🔜 До повышения: {points_needed} очков"
     else:
-        next_rank_str = "👑 <b>Максимальный ранг</b>"
+        next_rank_str = "👑 Максимальный ранг"
 
     d = message.from_user
     du = f"@{d.username}"
@@ -881,6 +881,7 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
+
 
 
 
