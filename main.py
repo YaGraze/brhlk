@@ -291,7 +291,8 @@ async def duel_handler(callback: types.CallbackQuery):
             await callback.answer("Не лезь, это не твой бой!", show_alert=True)
             return
             
-        await callback.message.edit_text(f"🏳️ Дуэль отменена. Соперник улетел на орбиту.")
+        msg = await callback.message.edit_text(f"🏳️ Дуэль отменена. Соперник улетел на орбиту.")
+        asyncio.create_task(delete_later(msg, 30))
         return
 
     # --- НАЧАЛО БОЯ (ИНИЦИАЛИЗАЦИЯ) ---
@@ -403,7 +404,8 @@ async def duel_handler(callback: types.CallbackQuery):
             try:
                 loser_status = await bot.get_chat_member(callback.message.chat.id, target['id'])
                 if loser_status.status in ["administrator", "creator"]:
-                    await callback.message.answer(f"{target['name']} проиграл, но Админов кикать нельзя.")
+                    msg = await callback.message.answer(f"{target['name']} проиграл, но Админов кикать нельзя.")
+                    asyncio.create_task(delete_later(msg, 15))
                 else:
                     await bot.ban_chat_member(callback.message.chat.id, target['id'])
                     await bot.unban_chat_member(callback.message.chat.id, target['id'])
@@ -848,5 +850,6 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
+
 
 
