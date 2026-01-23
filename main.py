@@ -273,6 +273,8 @@ async def duel_command(message: types.Message):
         f"🔴 Страж №1: {att_name}\n"
         f"🔵 Страж №2: {def_name}\n\n"
         f"Правила: 100 HP. Пошаговый бой. Проигравший вылетает из чата.\n"
+        f"🔥 GG: 12% шанс (Ваншот)\n"
+        f"♠️ Ace: 50% шанс (-34 HP)\n\n"
         f"{def_name}, ты принимаешь бой?",
         reply_markup=keyboard
     )
@@ -369,15 +371,15 @@ async def duel_handler(callback: types.CallbackQuery):
         if action == "duel_gg":
             weapon_name = "🔥 Голден Ган"
             # 20% шанс
-            if random.randint(1, 100) <= 20:
+            if random.randint(1, 100) <= 12:
                 hit = True
                 damage = 100
         elif action == "duel_ace":
             weapon_name = "♠️ Пиковый Туз"
             # 65% шанс
-            if random.randint(1, 100) <= 65:
+            if random.randint(1, 100) <= 50:
                 hit = True
-                damage = 50
+                damage = 34
 
         # Обработка попадания
         if hit:
@@ -447,8 +449,8 @@ async def update_duel_message(callback: types.CallbackQuery, game_id):
     # Кнопки оружия
     buttons = [
         [
-            InlineKeyboardButton(text="🔥 Голден Ган (20% / Kill)", callback_data="duel_gg"),
-            InlineKeyboardButton(text="♠️ Пиковый Туз (65% / -50HP)", callback_data="duel_ace")
+            InlineKeyboardButton(text="🔥 GG (12% / Kill)", callback_data="duel_gg"),
+            InlineKeyboardButton(text="♠️ Ace (50% / -34HP)", callback_data="duel_ace")
         ]
     ]
     keyboard = InlineKeyboardMarkup(inline_keyboard=buttons)
@@ -850,6 +852,7 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
+
 
 
 
