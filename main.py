@@ -269,10 +269,10 @@ async def duel_command(message: types.Message):
     keyboard = InlineKeyboardMarkup(inline_keyboard=buttons)
 
     await message.answer(
-        f"🔥 <b>ГОРНИЛО: ПРИВАТНЫЙ МАТЧ!</b>\n\n"
-        f"🔴 <b>Претендент:</b> {att_name}\n"
-        f"🔵 <b>Цель:</b> {def_name}\n\n"
-        f"<i>Правила: 100 HP. Пошаговый бой. Проигравший вылетает из чата.</i>\n"
+        f"🔥 ГОРНИЛО: ПРИВАТНЫЙ МАТЧ!\n\n"
+        f"🔴 Страж №1: {att_name}\n"
+        f"🔵 Страж №2: {def_name}\n\n"
+        f"Правила: 100 HP. Пошаговый бой. Проигравший вылетает из чата.\n"
         f"{def_name}, ты принимаешь бой?",
         reply_markup=keyboard
     )
@@ -291,7 +291,7 @@ async def duel_handler(callback: types.CallbackQuery):
             await callback.answer("Не лезь, это не твой бой!", show_alert=True)
             return
             
-        await callback.message.edit_text(f"🏳️ Дуэль отменена. Соперник сбежал в безопасную зону.")
+        await callback.message.edit_text(f"🏳️ Дуэль отменена. Соперник улетел на орбиту.")
         return
 
     # --- НАЧАЛО БОЯ (ИНИЦИАЛИЗАЦИЯ) ---
@@ -331,7 +331,13 @@ async def duel_handler(callback: types.CallbackQuery):
     # --- ВЫСТРЕЛ (ХОД ИГРОКА) ---
     if action in ["duel_gg", "duel_ace"]:
         game_id = callback.message.message_id
-        
+        if game_id not in ACTIVE_DUELS:
+            msg = await callback.answer("Матч не найден (Бот был перезагружен).", show_alert=True)
+            asyncio.create_task(delete_later(msg, 15))
+            try:
+                await callback.message.delete()
+            except: pass
+            return
         # Если игра не найдена (например, перезагрузили бота)
         if game_id not in ACTIVE_DUELS:
             await callback.answer("Этот матч уже устарел.", show_alert=True)
@@ -376,22 +382,20 @@ async def duel_handler(callback: types.CallbackQuery):
         if hit:
             target["hp"] -= damage
             if target["hp"] < 0: target["hp"] = 0
-            log_msg = f"💥 <b>Попадание!</b> {shooter['name']} использует {weapon_name} и сносит {damage} HP!"
+            log_msg = f"💥 Попадание! {shooter['name']} использует {weapon_name} и сносит {damage} HP!"
         else:
-            log_msg = f"💨 <b>Промах!</b> {shooter['name']} промазал с {weapon_name}."
+            log_msg = f"💨 Промах! {shooter['name']} промазал с {weapon_name}."
 
         # Проверка на победу
         if target["hp"] <= 0:
             # КОНЕЦ ИГРЫ
-            update_stat(shooter['id'], 'wins')
-            update_stat(target['id'], 'losses')
             
             del ACTIVE_DUELS[game_id] # Удаляем игру из памяти
             
             await callback.message.edit_text(
-                f"🏆 <b>МАТЧ ЗАВЕРШЕН!</b>\n\n"
+                f"🏆 МАТЧ ЗАВЕРШЕН!\n\n"
                 f"{log_msg}\n\n"
-                f"💀 {target['name']} повержен и отправляется на орбиту.",
+                f"💀 {target['name']} повержен и отправляется на орбиту (Kicked).",
                 reply_markup=None
             )
             
@@ -429,13 +433,13 @@ async def update_duel_message(callback: types.CallbackQuery, game_id):
     current_turn_name = p1["name"] if game["turn"] == p1["id"] else p2["name"]
 
     text = (
-        f"⚔️ <b>ДУЭЛЬ: РАУНД ИДЕТ</b>\n\n"
-        f"🔴 <b>{p1['name']}</b>: {p1['hp']} HP\n"
+        f"⚔️ ДУЭЛЬ: РАУНД ИДЕТ\n\n"
+        f"🔴 {p1['name']}: {p1['hp']} HP\n"
         f"[{get_hp_bar(p1['hp'])}]\n\n"
-        f"🔵 <b>{p2['name']}</b>: {p2['hp']} HP\n"
+        f"🔵 {p2['name']}: {p2['hp']} HP\n"
         f"[{get_hp_bar(p2['hp'])}]\n\n"
-        f"📜 <i>Лог: {game['log']}</i>\n\n"
-        f"👉 <b>Сейчас ходит:</b> {current_turn_name}"
+        f"📜 История: {game['log']}\n\n"
+        f"👉 Сейчас ходит: {current_turn_name}"
     )
 
     # Кнопки оружия
@@ -447,7 +451,11 @@ async def update_duel_message(callback: types.CallbackQuery, game_id):
     ]
     keyboard = InlineKeyboardMarkup(inline_keyboard=buttons)
 
-    await callback.message.edit_text(text, reply_markup=keyboard)
+    try:
+        await callback.message.edit_text(text, reply_markup=keyboard)
+    except Exception:
+        # Если текст не изменился, просто игнорируем ошибку, это не страшно
+        pass
 
 # --- 2. РЕПОРТ (С ПРАВИЛЬНОЙ ССЫЛКОЙ ДЛЯ ЧАСТНЫХ ЧАТОВ) ---
 @dp.message(Command("report"))
@@ -840,4 +848,5 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
+
 
