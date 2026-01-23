@@ -4,7 +4,7 @@ import re
 import os
 import random
 
-from aiogram import Bot, Dispatcher, types, F
+from aiogram import Bot, Dispatcher, types, F, BaseMiddleware
 from aiogram.enums import ChatMemberStatus
 from aiogram.types import LinkPreviewOptions
 from datetime import datetime, timedelta
@@ -840,3 +840,4 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
+
