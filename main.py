@@ -338,7 +338,13 @@ async def help_command(message: types.Message):
         [InlineKeyboardButton(text="🔧 Гайд по боту", url=BOT_GUIDE)]
     ])
     msg = await message.answer(
-        "Made by yagraze & pan1q.\nУзнать больше 👇👇",
+        "Made by yagraze & pan1q.\n"
+        "📜 Команды:\n"
+        "/duel — Вызов на бой (Рейтинговый)\n"
+        "/stats — Твоя статистика и ранг\n"
+        "/report — Пожаловаться на нарушение\n"
+        "/lw — Рулетка (Мут/Удача)\n\n"
+        "Узнать больше 👇👇",
         reply_markup=keyboard
     )
     asyncio.create_task(delete_later(msg, 15))
@@ -881,6 +887,7 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
+
 
 
 
