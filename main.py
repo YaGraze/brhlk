@@ -312,6 +312,9 @@ async def stats_command(message: types.Message):
     else:
         next_rank_str = "👑 <b>Максимальный ранг</b>"
 
+    d = message.from_user
+    du = f"@{d.username}"
+    
     text = (
         f"📊 ДОСЬЕ ГОРНИЛА: {du}\n"
         f"━━━━━━━━━━━━━━━━━━\n"
@@ -367,7 +370,7 @@ async def duel_command(message: types.Message):
         ]
     ]
     keyboard = InlineKeyboardMarkup(inline_keyboard=buttons)
-
+    
     await message.answer(
         f"🔥 ГОРНИЛО: ПРИВАТНЫЙ МАТЧ!\n\n"
         f"🔴 Претендент: {att_name}\n"
@@ -878,5 +881,6 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
+
 
 
