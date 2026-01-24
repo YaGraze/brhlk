@@ -214,6 +214,27 @@ def update_duel_stats(user_id, is_winner):
     
     conn.commit()
 
+def get_rank_info(points):
+    """
+    Возвращает (название ранга, сколько очков до следующего).
+    """
+    # Пороги очков: (Порог, Название ТЕКУЩЕГО ранга)
+    tiers = [
+        (50, "Страж"),
+        (150, "Удаль"),
+        (350, "Отвага"),
+        (700, "Героизм"),
+        (1500, "Величие"),
+        (float('inf'), "Легенда")
+    ]
+    
+    for threshold, title in tiers:
+        if points < threshold:
+            needed = int(threshold - points)
+            return title, needed
+            
+    return "Легенда", 0
+
 def update_stat(user_id, stat_type):
     pass 
 
@@ -928,6 +949,7 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
+
 
 
 
