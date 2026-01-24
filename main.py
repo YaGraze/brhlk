@@ -4,6 +4,7 @@ import re
 import os
 import random
 import json
+import sqlite3
 
 from aiogram import Bot, Dispatcher, types, F, BaseMiddleware
 from aiogram.enums import ChatMemberStatus
@@ -162,68 +163,59 @@ class AntiFloodMiddleware(BaseMiddleware):
 
 # ================= ФУНКЦИИ СТАТИСТИКИ (JSON) =================
 
-def load_stats():
-    """Загрузка статистики из файла"""
-    if os.path.exists(STATS_FILE):
-        try:
-            with open(STATS_FILE, "r", encoding="utf-8") as f:
-                return json.load(f)
-        except Exception:
-            return {}
-    return {}
+# ================= БАЗА ДАННЫХ (SQLite) =================
 
-def save_stats():
-    """Сохранение статистики"""
-    try:
-        with open(STATS_FILE, "w", encoding="utf-8") as f:
-            json.dump(USER_STATS, f, indent=4, ensure_ascii=False)
-    except Exception as e:
-        print(f"Ошибка сохранения статистики: {e}")
+# 1. Определяем пути
+# Получаем папку, где лежит main.py
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+# Задаем путь к папке data
+DATA_DIR = os.path.join(BASE_DIR, "data")
+# Задаем полный путь к файлу БД
+DB_PATH = os.path.join(DATA_DIR, "database.db")
 
-# Загружаем при старте
-USER_STATS = load_stats()
+# 2. Создаем папку data, если её нет
+if not os.path.exists(DATA_DIR):
+    os.makedirs(DATA_DIR)
 
-def get_rank_info(points):
-    """
-    Возвращает (название ранга, сколько очков до следующего).
-    Если 0 очков до следующего - значит макс ранг.
-    """
-    # Список: (Порог очков для СЛЕДУЮЩЕГО ранга, Название ТЕКУЩЕГО ранга)
-    # Пример: Если очков < 50, то ранг "Страж", след. уровень на 50
-    tiers = [
-        (50, "Страж"),
-        (150, "Удаль"),
-        (350, "Отвага"),
-        (700, "Героизм"),
-        (1500, "Величие"),
-        (float('inf'), "Легенда")
-    ]
-    
-    for threshold, title in tiers:
-        if points < threshold:
-            needed = int(threshold - points)
-            return title, needed
-            
-    return "Легенда", 0
+# 3. Подключаемся к БД по новому пути
+conn = sqlite3.connect(DB_PATH, check_same_thread=False)
+cursor = conn.cursor()
+
+# Создаем таблицу
+cursor.execute('''
+    CREATE TABLE IF NOT EXISTS users (
+        user_id INTEGER PRIMARY KEY,
+        wins INTEGER DEFAULT 0,
+        losses INTEGER DEFAULT 0,
+        points INTEGER DEFAULT 0
+    )
+''')
+conn.commit()
+
+# --- ФУНКЦИИ БД ---
+
+def get_user_data(user_id):
+    """Получает статистику игрока"""
+    cursor.execute('SELECT wins, losses, points FROM users WHERE user_id = ?', (user_id,))
+    row = cursor.fetchone()
+    if row:
+        return {'wins': row[0], 'losses': row[1], 'points': row[2]}
+    else:
+        return {'wins': 0, 'losses': 0, 'points': 0}
 
 def update_duel_stats(user_id, is_winner):
-    """Обновляет статистику дуэли: победа/поражение и очки"""
-    user_id = str(user_id) # JSON ключи всегда строки
-    
-    # Создаем запись, если нет
-    if user_id not in USER_STATS:
-        USER_STATS[user_id] = {'wins': 0, 'losses': 0, 'points': 0}
+    """Обновляет очки после дуэли"""
+    cursor.execute('INSERT OR IGNORE INTO users (user_id) VALUES (?)', (user_id,))
     
     if is_winner:
-        USER_STATS[user_id]['wins'] += 1
-        USER_STATS[user_id]['points'] += 25 # +25 за победу
+        cursor.execute('UPDATE users SET wins = wins + 1, points = points + 25 WHERE user_id = ?', (user_id,))
     else:
-        USER_STATS[user_id]['losses'] += 1
-        USER_STATS[user_id]['points'] -= 10 # -10 за поражение
-        if USER_STATS[user_id]['points'] < 0:
-            USER_STATS[user_id]['points'] = 0 # Не уходим в минус
-            
-    save_stats()
+        cursor.execute('UPDATE users SET losses = losses + 1, points = MAX(0, points - 10) WHERE user_id = ?', (user_id,))
+    
+    conn.commit()
+
+def update_stat(user_id, stat_type):
+    pass 
 
 # ================= ОБЩИЕ ФУНКЦИИ =================
 
@@ -299,27 +291,26 @@ async def verification_timeout(chat_id: int, user_id: int, username: str):
 async def stats_command(message: types.Message):
     # Если ответили на сообщение — показываем стату того человека
     target = message.reply_to_message.from_user if message.reply_to_message else message.from_user
-    user_id = str(target.id)
+    user_id = target.id
     name = target.first_name
 
-    # Получаем данные
-    data = USER_STATS.get(user_id, {'wins': 0, 'losses': 0, 'points': 0})
+    # 1. Берем данные из БД
+    data = get_user_data(user_id)
     
-    wins = data.get('wins', 0)
-    losses = data.get('losses', 0)
-    points = data.get('points', 0)
+    wins = data['wins']
+    losses = data['losses']
+    points = data['points']
     
-    # Считаем Винрейт
+    # 2. Считаем Винрейт
     total_games = wins + losses
     if total_games > 0:
         winrate = round((wins / total_games) * 100, 1)
     else:
         winrate = 0.0
 
-    # Получаем ранг и сколько осталось
+    # 3. Считаем ранг
     rank_title, points_needed = get_rank_info(points)
     
-    # Формируем строку про следующий ранг
     if points_needed > 0:
         next_rank_str = f"🔜 До повышения: {points_needed} очков"
     else:
@@ -937,6 +928,7 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
+
 
 
 
