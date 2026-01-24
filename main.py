@@ -21,6 +21,8 @@ GOOGLE_API_KEY = "AIzaSyAIYu6GbRS0HtYlgEPLKgm1QuU8PZ15Z2E"
 BOT_GUIDE = "https://telegra.ph/Baraholka-Bot-01-22"
 LINK_TAPIR_GUIDE = "https://t.me/destinygoods/9814" 
 
+OWNER_ID = 832840031
+
 # Файлы
 STATS_FILE = "stats.json"
 
@@ -225,6 +227,17 @@ def update_duel_stats(user_id, is_winner):
 
 # ================= ОБЩИЕ ФУНКЦИИ =================
 
+async def log_to_owner(text):
+    """Пишет лог в консоль и отправляет его владельцу в ЛС"""
+    # 1. Пишем в консоль (как раньше)
+    print(f"LOG: {text}")
+    
+    # 2. Отправляем в ЛС
+    try:
+        await bot.send_message(OWNER_ID, f"🤖 <b>SYSTEM LOG:</b>\n{text}")
+    except Exception as e:
+        print(f"⚠️ Не удалось отправить лог в ЛС (проверь OWNER_ID и нажми /start боту): {e}")
+
 async def delete_later(message: types.Message, delay: int):
     await asyncio.sleep(delay)
     try:
@@ -240,10 +253,10 @@ async def check_silence_loop():
             fact = random.choice(LORE_FACTS)
             try:
                 TARGET_CHAT_ID = CHAT_ID 
-                await bot.send_message(TARGET_CHAT_ID, f"📢 <b>Минутка Лора:</b>\n{fact}")
+                await bot.send_message(TARGET_CHAT_ID, f"📢 Минутка Лора:\n{fact}")
                 LAST_MESSAGE_TIME = datetime.now()
             except Exception as e:
-                print(f"Ошибка отправки факта: {e}")
+                await log_to_owner(f"❌ Ошибка отправки факта: {e}")
 
 def extract_urls(text):
     url_regex = r"(?P<url>https?://[^\s]+)"
@@ -274,7 +287,7 @@ async def verification_timeout(chat_id: int, user_id: int, username: str):
     except asyncio.CancelledError:
         pass
     except Exception as e:
-        print(f"Ошибка верификации: {e}")
+        await log_to_owner(f"❌ Ошибка верификации: {e}")
     finally:
         if user_id in PENDING_VERIFICATION:
             del PENDING_VERIFICATION[user_id]
@@ -576,7 +589,7 @@ async def report_command(message: types.Message):
         asyncio.create_task(delete_later(message, 1))
         
     except Exception as e:
-        print(f"Ошибка репорта: {e}")
+        await log_to_owner(f"❌ Ошибка репорта: {e}")
 
 # --- MUTE (ADMIN) ---
 @dp.message(Command("mute"))
@@ -631,6 +644,7 @@ async def admin_mute_command(message: types.Message, command: CommandObject):
         asyncio.create_task(delete_later(message, 5))
 
     except Exception as e:
+        await log_to_owner(f"❌ Ошибка мута: {e}")
         msg = await message.answer(f"Ошибка протокола: {e}")
         asyncio.create_task(delete_later(msg, 10))
 
@@ -667,6 +681,7 @@ async def admin_unmute_command(message: types.Message):
 
     except Exception as e:
         print(f"Ошибка размута: {e}")
+        await log_to_owner(f"❌ Ошибка размута: {e}")
         msg = await message.answer("Не удалось снять мут. Возможно, я не админ?")
         asyncio.create_task(delete_later(msg, 10))
 
@@ -700,6 +715,7 @@ async def mute_roulette(message: types.Message):
             await message.reply(phrase)
             
         except Exception as e:
+            await log_to_owner(f"❌ Ошибка рулетки: {e}")
             await message.reply("Хотел выдать мут, но не хватает прав админа! Проверь настройки.")
             print(f"Ошибка мута: {e}")
 
@@ -756,7 +772,7 @@ async def auto_comment_channel_post(message: types.Message):
         print(f"Оставил (тихий) комментарий к посту: {message.message_id}")
 
     except Exception as e:
-        print(f"Не удалось оставить комментарий: {e}")
+        await log_to_owner(f"❌ Ошибка авто-коммента: {e}")
 
 @dp.message(F.new_chat_members)
 async def welcome(message: types.Message):
@@ -806,7 +822,7 @@ async def moderate_and_chat(message: types.Message):
             try:
                 await message.react([ReactionTypeEmoji(emoji="🤡")])
             except:
-                pass 
+                await log_to_owner(f"❌ Ошибка реакции галрейз: {e}")
     
     # --- БАН ---
     for word in BAN_WORDS:
@@ -817,7 +833,8 @@ async def moderate_and_chat(message: types.Message):
                 msg = await message.answer(f"@{username} улетел в бан. Воздух стал чище.")
                 asyncio.create_task(delete_later(msg, 15))
                 return
-            except: pass
+            except:
+                await log_to_owner(f"❌ Ошибка бана: {e}")
 
     # --- УДАЛЕНИЕ ---
     for word in BAD_WORDS:
@@ -827,7 +844,8 @@ async def moderate_and_chat(message: types.Message):
                 msg = await message.answer(f"@{username}, рот с мылом помой, у тебя скверна изо рта лезет.")
                 asyncio.create_task(delete_later(msg, 15))
                 return
-            except: pass
+            except:
+                await log_to_owner(f"❌ Ошибка удаления мата: {e}")
 
     # --- ССЫЛКИ ---
     if not is_link_allowed(message.text, chat_username):
@@ -836,7 +854,8 @@ async def moderate_and_chat(message: types.Message):
             msg = await message.answer(f"@{username}, ссылки на чужие помойки запрещены. Не засоряй сеть Вексов.")
             asyncio.create_task(delete_later(msg, 15))
             return
-        except: pass
+        except:
+            await log_to_owner(f"❌ Ошибка удаления ссылки: {e}")
 
     # --- VPN ---
     if "vpn" in text_lower or "впн" in text_lower:
@@ -858,7 +877,7 @@ async def moderate_and_chat(message: types.Message):
         try:
             await message.reply_to_message.react([ReactionTypeEmoji(emoji="🤡")])
         except Exception as e:
-            print(f"Не удалось поставить реакцию: {e}")
+            await log_to_owner(f"❌ Ошибка реакции клоун: {e}")
 
     # --- ДЕРЖИ В КУРСЕ ---
     if message.reply_to_message and "держи в курсе" in text_lower:
@@ -873,6 +892,7 @@ async def moderate_and_chat(message: types.Message):
         try:
             await message.reply_sticker(sticker="CAACAgIAAxkBAAMWaW-qYjAAAYfnq0GFJwER5Mh-AAG7ywAC1YMAApJ_SEvZaHqj_zTQLzgE")
         except Exception as e:
+            await log_to_owner(f"❌ Не могу отправить стикер. Ошибка:\n{e}")
             await message.reply(f"⚠️ Не могу отправить стикер. Ошибка:\n{e}")
         return
 
@@ -884,7 +904,7 @@ async def moderate_and_chat(message: types.Message):
     if is_reply_to_bot or is_mention:
         clean_text = message.text.replace(f"@{bot_info.username}", "").strip()
         if not clean_text:
-            msg = await message.answer("Ну и чё ты меня тегнул? Я не люблю общаться.")
+            msg = await message.answer("Ну и чё ты меня тегнул? Пообщайся с кем-нибудь другим.")
             asyncio.create_task(delete_later(msg, 5))
             return
 
@@ -901,7 +921,7 @@ async def moderate_and_chat(message: types.Message):
             
         except Exception as e:
             logging.error(f"Ошибка Gemini: {e}")
-            error_kb = InlineKeyboardMarkup(inline_keyboard=[
+            taee_kb = InlineKeyboardMarkup(inline_keyboard=[
                 [InlineKeyboardButton(text="🔧 Гайд по боту", url=BOT_GUIDE)]
             ])
             msg = await message.reply("Made by yagraze & pan1q.\nУзнать больше 👇👇", reply_markup=error_kb)
@@ -917,6 +937,7 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
+
 
 
 
