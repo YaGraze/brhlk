@@ -16,7 +16,7 @@ import google.generativeai as genai
 
 # ================= НАСТРОЙКИ =================
 
-BOT_TOKEN = "8232116536:AAH4uYukd18FZSlHqyRCAnwUnkVD6GgbYOg"
+BOT_TOKEN = "8400087235:AAFZubO4ijQnZCOjLZ8UulzcthDixzOqSt0"
 GOOGLE_API_KEY = "AIzaSyAIYu6GbRS0HtYlgEPLKgm1QuU8PZ15Z2E"
 
 BOT_GUIDE = "https://telegra.ph/Baraholka-Bot-01-22"
@@ -1079,3 +1079,4 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
+
