@@ -1,13 +1,13 @@
 {
     "832840031": {
-        "wins": 6,
-        "losses": 1,
-        "points": 140
+        "wins": 27,
+        "losses": 16,
+        "points": 515
     },
     "709473070": {
-        "wins": 2,
-        "losses": 4,
-        "points": 30
+        "wins": 10,
+        "losses": 8,
+        "points": 170
     },
     "969698544": {
         "wins": 2,
@@ -15,14 +15,14 @@
         "points": 40
     },
     "5562242689": {
-        "wins": 1,
-        "losses": 3,
-        "points": 15
+        "wins": 4,
+        "losses": 5,
+        "points": 70
     },
     "1436427850": {
-        "wins": 1,
-        "losses": 0,
-        "points": 25
+        "wins": 14,
+        "losses": 12,
+        "points": 255
     },
     "233425605": {
         "wins": 0,
@@ -39,4 +39,5 @@
         "losses": 0,
         "points": 25
     }
+
 }
