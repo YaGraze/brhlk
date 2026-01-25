@@ -205,7 +205,7 @@ def get_user_data(user_id):
         else:
             return {'wins': 0, 'losses': 0, 'points': 0}
     except Exception as e:
-        await log_to_owner(f"❌ Ошибка отправки факта: {e}")
+        print(f"Ошибка БД (get): {e}")
         return {'wins': 0, 'losses': 0, 'points': 0}
 
 def update_duel_stats(user_id, is_winner):
@@ -222,7 +222,7 @@ def update_duel_stats(user_id, is_winner):
         
         conn.commit()
     except Exception as e:
-        await log_to_owner(f"❌ Ошибка отправки факта: {e}")
+        print(f"Ошибка БД (get): {e}")
 
 def update_stat(user_id, stat_type):
     """
