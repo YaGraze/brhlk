@@ -161,27 +161,28 @@ class AntiFloodMiddleware(BaseMiddleware):
                 self.flood_cache[user_id] = {'text': text, 'msg_id': event.message_id}
         return await handler(event, data)
 
-# ================= ФУНКЦИИ СТАТИСТИКИ (JSON) =================
-
-# ================= БАЗА ДАННЫХ (SQLite) =================
+# ================= БАЗА ДАННЫХ (SQLite + WAL) =================
 
 # 1. Определяем пути
-# Получаем папку, где лежит main.py
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-# Задаем путь к папке data
 DATA_DIR = os.path.join(BASE_DIR, "data")
-# Задаем полный путь к файлу БД
 DB_PATH = os.path.join(DATA_DIR, "database.db")
 
-# 2. Создаем папку data, если её нет
+# 2. Создаем папку data
 if not os.path.exists(DATA_DIR):
     os.makedirs(DATA_DIR)
 
-# 3. Подключаемся к БД по новому пути
-conn = sqlite3.connect(DB_PATH, check_same_thread=False)
+# 3. Подключаемся
+conn = sqlite3.connect(DB_PATH, check_same_thread=False, timeout=10)
+conn.row_factory = sqlite3.Row
 cursor = conn.cursor()
 
-# Создаем таблицу
+# 4. Включаем WAL (надежность)
+cursor.execute("PRAGMA journal_mode=WAL;")
+cursor.execute("PRAGMA synchronous=NORMAL;")
+conn.commit()
+
+# Создаем таблицу ТОЛЬКО для Дуэлей
 cursor.execute('''
     CREATE TABLE IF NOT EXISTS users (
         user_id INTEGER PRIMARY KEY,
@@ -196,46 +197,38 @@ conn.commit()
 
 def get_user_data(user_id):
     """Получает статистику игрока"""
-    cursor.execute('SELECT wins, losses, points FROM users WHERE user_id = ?', (user_id,))
-    row = cursor.fetchone()
-    if row:
-        return {'wins': row[0], 'losses': row[1], 'points': row[2]}
-    else:
+    try:
+        cursor.execute('SELECT wins, losses, points FROM users WHERE user_id = ?', (user_id,))
+        row = cursor.fetchone()
+        if row:
+            return dict(row)
+        else:
+            return {'wins': 0, 'losses': 0, 'points': 0}
+    except Exception as e:
+        await log_to_owner(f"❌ Ошибка отправки факта: {e}")
         return {'wins': 0, 'losses': 0, 'points': 0}
 
 def update_duel_stats(user_id, is_winner):
     """Обновляет очки после дуэли"""
-    cursor.execute('INSERT OR IGNORE INTO users (user_id) VALUES (?)', (user_id,))
-    
-    if is_winner:
-        cursor.execute('UPDATE users SET wins = wins + 1, points = points + 25 WHERE user_id = ?', (user_id,))
-    else:
-        cursor.execute('UPDATE users SET losses = losses + 1, points = MAX(0, points - 10) WHERE user_id = ?', (user_id,))
-    
-    conn.commit()
-
-def get_rank_info(points):
-    """
-    Возвращает (название ранга, сколько очков до следующего).
-    """
-    # Пороги очков: (Порог, Название ТЕКУЩЕГО ранга)
-    tiers = [
-        (50, "Страж"),
-        (150, "Удаль"),
-        (350, "Отвага"),
-        (700, "Героизм"),
-        (1500, "Величие"),
-        (float('inf'), "Легенда")
-    ]
-    
-    for threshold, title in tiers:
-        if points < threshold:
-            needed = int(threshold - points)
-            return title, needed
-            
-    return "Легенда", 0
+    try:
+        cursor.execute('INSERT OR IGNORE INTO users (user_id) VALUES (?)', (user_id,))
+        
+        if is_winner:
+            # Победа: +1 победа, +25 очков
+            cursor.execute('UPDATE users SET wins = wins + 1, points = points + 25 WHERE user_id = ?', (user_id,))
+        else:
+            # Поражение: +1 луз, -10 очков (но не ниже 0)
+            cursor.execute('UPDATE users SET losses = losses + 1, points = MAX(0, points - 10) WHERE user_id = ?', (user_id,))
+        
+        conn.commit()
+    except Exception as e:
+        await log_to_owner(f"❌ Ошибка отправки факта: {e}")
 
 def update_stat(user_id, stat_type):
+    """
+    Эта функция нужна, чтобы старый код модерации не выдавал ошибку.
+    Но в БД мы ничего не пишем.
+    """
     pass 
 
 # ================= ОБЩИЕ ФУНКЦИИ =================
@@ -1079,6 +1072,7 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
+
 
 
 
