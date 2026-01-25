@@ -407,7 +407,7 @@ async def duel_command(message: types.Message):
         f"🔴 Претендент: {att_name}\n"
         f"🔵 Цель: {def_name}\n\n"
         f"📜 Правила: 100HP у Стражей,\n"
-        f"🎲 Случайный класс (Хант или Варлок).\n"
+        f"🎲 Классы на выбор:\n"
         f"🔫 - Ханты: Голден Ган + Туз\n"
         f"🔮 - Варлоки: Нова Бомба + Туз\n"
         f"{def_name}, ты принимаешь бой?",
@@ -452,16 +452,16 @@ async def update_duel_message(callback: types.CallbackQuery, game_id):
     if game_class == "hunter":
         buttons = [
             [
-                InlineKeyboardButton(text="🔥 GG (12% / kill)", callback_data="duel_gg"),
-                InlineKeyboardButton(text="♠️ Ace (50% / 25dmg)", callback_data="duel_ace")
+                InlineKeyboardButton(text="🔥 GG (9% / kill)", callback_data="duel_gg"),
+                InlineKeyboardButton(text="♠️ Ace (60% / 25dmg)", callback_data="duel_ace")
             ]
         ]
     else: # warlock
         buttons = [
             [
                 # Общий шанс попадания 40% (15+25)
-                InlineKeyboardButton(text="🟣 Nova (20% / 75dmg/kill)", callback_data="duel_nova"),
-                InlineKeyboardButton(text="♠️ Ace (50% / 25dmg)", callback_data="duel_ace")
+                InlineKeyboardButton(text="🟣 Nova (14% / 75dmg/kill)", callback_data="duel_nova"),
+                InlineKeyboardButton(text="♠️ Ace (60% / 25dmg)", callback_data="duel_ace")
             ]
         ]
 
@@ -631,13 +631,13 @@ async def duel_handler(callback: types.CallbackQuery):
         # --- ЛОГИКА ОРУЖИЯ ---
         if action == "duel_gg":
             weapon_name = "🔥 Голден Ган"
-            if random.randint(1, 100) <= 12: # 12%
+            if random.randint(1, 100) <= 9: # 9%
                 hit = True
                 damage = 100
                 
         elif action == "duel_ace":
             weapon_name = "♠️ Пиковый Туз"
-            if random.randint(1, 100) <= 50: # 50%
+            if random.randint(1, 100) <= 60: # 60%
                 hit = True
                 damage = 25
                 
@@ -648,11 +648,11 @@ async def duel_handler(callback: types.CallbackQuery):
             roll = random.randint(1, 100)
             
             # 1-15: Ваншот (100 урона)
-            if roll <= 10:
+            if roll <= 5:
                 hit = True
                 damage = 100
             # 16-40 (следующие 25%): Урон 70
-            elif roll <= 20:
+            elif roll <= 14:
                 hit = True
                 damage = 75
             # 41-100: Промах
@@ -1079,4 +1079,5 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
+
 
