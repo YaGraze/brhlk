@@ -971,7 +971,7 @@ async def moderate_and_chat(message: types.Message):
         if random.randint(1, 3) == 1:
             try:
                 await message.react([ReactionTypeEmoji(emoji="🤡")])
-            except:
+            except Exception as e:
                 await log_to_owner(f"❌ Ошибка реакции галрейз: {e}")
     
     # --- БАН ---
@@ -983,7 +983,7 @@ async def moderate_and_chat(message: types.Message):
                 msg = await message.answer(f"@{username} улетел в бан. Воздух стал чище.")
                 asyncio.create_task(delete_later(msg, 15))
                 return
-            except:
+            except Exception as e:
                 await log_to_owner(f"❌ Ошибка бана: {e}")
 
     # --- УДАЛЕНИЕ ---
@@ -994,7 +994,7 @@ async def moderate_and_chat(message: types.Message):
                 msg = await message.answer(f"@{username}, рот с мылом помой, у тебя скверна изо рта лезет.")
                 asyncio.create_task(delete_later(msg, 15))
                 return
-            except:
+            except Exception as e:
                 await log_to_owner(f"❌ Ошибка удаления мата: {e}")
 
     # --- ССЫЛКИ ---
@@ -1004,7 +1004,7 @@ async def moderate_and_chat(message: types.Message):
             msg = await message.answer(f"@{username}, ссылки на чужие помойки запрещены. Не засоряй сеть Вексов.")
             asyncio.create_task(delete_later(msg, 15))
             return
-        except:
+        except Exception as e:
             await log_to_owner(f"❌ Ошибка удаления ссылки: {e}")
 
     # --- VPN ---
@@ -1087,6 +1087,7 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
+
 
 
 
