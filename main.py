@@ -458,7 +458,7 @@ async def update_duel_message(callback: types.CallbackQuery, game_id):
         f"[{get_hp_bar(p1['hp'])}]\n\n"
         f"🔵 {p2['name']}: {p2['hp']} HP\n"
         f"[{get_hp_bar(p2['hp'])}]\n\n"
-        f"📜 Лог: {game['log']}\n\n"
+        f"📜 Лог: {game['log']}\n"
         f"{flying_status}\n\n"
         f"👉 Ход: {current_name} [{ru_cl[current_class]}]"
     )
@@ -1170,6 +1170,7 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
+
 
 
 
