@@ -453,7 +453,7 @@ async def update_duel_message(callback: types.CallbackQuery, game_id):
         buttons = [
             [
                 InlineKeyboardButton(text="🔥 GG (9% / kill)", callback_data="duel_gg"),
-                InlineKeyboardButton(text="♠️ Ace (60% / 25dmg)", callback_data="duel_ace")
+                InlineKeyboardButton(text="♠️ Ace (55% / 25dmg)", callback_data="duel_ace")
             ]
         ]
     else: # warlock
@@ -461,7 +461,7 @@ async def update_duel_message(callback: types.CallbackQuery, game_id):
             [
                 # Общий шанс попадания 40% (15+25)
                 InlineKeyboardButton(text="🟣 Nova (14% / 75dmg/kill)", callback_data="duel_nova"),
-                InlineKeyboardButton(text="♠️ Ace (60% / 25dmg)", callback_data="duel_ace")
+                InlineKeyboardButton(text="♠️ Ace (55% / 25dmg)", callback_data="duel_ace")
             ]
         ]
 
@@ -637,7 +637,7 @@ async def duel_handler(callback: types.CallbackQuery):
                 
         elif action == "duel_ace":
             weapon_name = "♠️ Пиковый Туз"
-            if random.randint(1, 100) <= 60: # 60%
+            if random.randint(1, 100) <= 55: # 55%
                 hit = True
                 damage = 25
                 
@@ -1079,5 +1079,6 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
+
 
 
