@@ -425,7 +425,9 @@ async def duel_command(message: types.Message):
 async def update_duel_message(callback: types.CallbackQuery, game_id):
     if game_id not in ACTIVE_DUELS:
         await callback.answer("Игра не найдена (перезагрузка бота?)", show_alert=True)
-        try: await callback.message.delete()
+        try: 
+            # Убираем кнопки, но оставляем текст
+            await callback.message.edit_reply_markup(reply_markup=None)
         except: pass
         return
 
@@ -486,8 +488,9 @@ async def duel_class_handler(callback: types.CallbackQuery):
     
     # Проверка на существование игры
     if game_id not in ACTIVE_DUELS:
-        await callback.answer("Игра не найдена.", show_alert=True)
-        try: await callback.message.delete()
+        await callback.answer("Матч устарел (Бот перезагружен).", show_alert=True)
+        try: 
+            await callback.message.edit_text("🚫 Матч аннулирован (Кажется, тапир?...).", reply_markup=None)
         except: pass
         return
 
@@ -598,8 +601,9 @@ async def duel_handler(callback: types.CallbackQuery):
         game_id = callback.message.message_id
         
         if game_id not in ACTIVE_DUELS:
-            await callback.answer("Матч не найден.", show_alert=True)
-            try: await callback.message.delete()
+            await callback.answer("Матч устарел (Бот перезагружен).", show_alert=True)
+            try: 
+                await callback.message.edit_text("🚫 Матч аннулирован (Кажется, тапир?...).", reply_markup=None)
             except: pass
             return
 
@@ -1087,6 +1091,7 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
+
 
 
 
