@@ -231,6 +231,21 @@ def update_stat(user_id, stat_type):
     """
     pass 
 
+def get_rank_info(points):
+    tiers = [
+        (50, "Страж"),
+        (150, "Удаль"),
+        (350, "Отвага"),
+        (700, "Героизм"),
+        (1500, "Величие"),
+        (float('inf'), "Легенда")
+    ]
+    for threshold, title in tiers:
+        if points < threshold:
+            needed = int(threshold - points)
+            return title, needed
+    return "Легенда", 0
+
 # ================= ОБЩИЕ ФУНКЦИИ =================
 
 async def log_to_owner(text):
@@ -1072,6 +1087,7 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
+
 
 
 
