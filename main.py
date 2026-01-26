@@ -31,6 +31,10 @@ USER_STATS = {} # Загружается из файла
 PROCESSED_ALBUMS = []
 LAST_MESSAGE_TIME = datetime.now()
 AI_COOLDOWN_TIME = datetime.now()
+TOURNAMENT_ACTIVE = False
+TOURNAMENT_MAX_PLAYERS = 0
+TOURNAMENT_PLAYERS = [] # Список ID участников
+TOURNAMENT_USERNAMES = [] # Список ников для красоты
 
 ADMIN_CHAT_ID = -1003376406623 
 CHAT_ID = -1002129048580
@@ -317,6 +321,95 @@ async def verification_timeout(chat_id: int, user_id: int, username: str):
             del PENDING_VERIFICATION[user_id]
 
 # ================= ХЕНДЛЕРЫ =================
+
+# --- ЗАПУСК ТУРНИРА (АДМИН) ---
+@dp.message(Command("startcup"))
+async def start_cup_command(message: types.Message, command: CommandObject):
+    # 1. Проверка прав (только ты)
+    if message.from_user.id != OWNER_ID:
+        return # Игнорим остальных
+
+    # 2. Проверка аргумента (число участников)
+    args = command.args
+    if not args or not args.isdigit():
+        await message.reply("Укажи количество участников. Пример: `/startcup 8`")
+        return
+
+    count = int(args)
+    
+    # 3. Активируем турнир
+    global TOURNAMENT_ACTIVE, TOURNAMENT_MAX_PLAYERS, TOURNAMENT_PLAYERS, TOURNAMENT_USERNAMES
+    TOURNAMENT_ACTIVE = True
+    TOURNAMENT_MAX_PLAYERS = count
+    TOURNAMENT_PLAYERS = []
+    TOURNAMENT_USERNAMES = []
+
+    await message.answer(
+        f"🏆 РЕГИСТРАЦИЯ НА ТУРНИР ГОРНИЛА ОТКРЫТА!\n\n"
+        f"Нужно стражей: {count}\n"
+        f"Чтобы участвовать, напиши команду: /cup."
+    )
+
+# --- РЕГИСТРАЦИЯ (/cup) ---
+@dp.message(Command("cup"))
+async def join_cup_command(message: types.Message):
+    global TOURNAMENT_ACTIVE, TOURNAMENT_PLAYERS, TOURNAMENT_USERNAMES
+
+    # 1. Если турнира нет
+    if not TOURNAMENT_ACTIVE:
+        msg = await message.reply("Сейчас не ведется набор в турнир.")
+        asyncio.create_task(delete_later(msg, 5))
+        asyncio.create_task(delete_later(message, 5))
+        return
+
+    user_id = message.from_user.id
+    username = f"@{message.from_user.username}" if message.from_user.username else message.from_user.first_name
+
+    # 2. Если уже записался
+    if user_id in TOURNAMENT_PLAYERS:
+        msg = await message.reply("Ты уже в списке, Страж.")
+        asyncio.create_task(delete_later(msg, 5))
+        return
+
+    # 3. Добавляем участника
+    TOURNAMENT_PLAYERS.append(user_id)
+    TOURNAMENT_USERNAMES.append(username)
+    
+    current_count = len(TOURNAMENT_PLAYERS)
+    needed = TOURNAMENT_MAX_PLAYERS
+
+    # 4. Проверяем, набрались ли люди
+    if current_count < needed:
+        await message.answer(f"✅ {username} записан! ({current_count}/{needed})")
+    else:
+        # ВСЕ НАБРАЛИСЬ -> ЗАКРЫВАЕМ НАБОР
+        TOURNAMENT_ACTIVE = False
+        
+        # --- ЖЕРЕБЬЕВКА ---
+        # Перемешиваем список ников
+        random.shuffle(TOURNAMENT_USERNAMES)
+        
+        # Разбиваем на пары
+        pairs_text = ""
+        pair_num = 1
+        
+        # Идем шагом по 2 (0, 2, 4...)
+        for i in range(0, len(TOURNAMENT_USERNAMES), 2):
+            p1 = TOURNAMENT_USERNAMES[i]
+            # Проверяем, есть ли пара (на случай нечетного числа)
+            if i + 1 < len(TOURNAMENT_USERNAMES):
+                p2 = TOURNAMENT_USERNAMES[i+1]
+                pairs_text += f"⚔️ Пара {pair_num}: {p1} vs {p2}\n"
+            else:
+                # Если кто-то остался без пары
+                pairs_text += f"⚠ Без пары: {p1}.\n"
+            pair_num += 1
+
+        await message.answer(
+            f"🚫 НАБОР ЗАКРЫТ! Сетка сформирована.\n\n"
+            f"{pairs_text}\n\n"
+            f"Ждите инструкций от организатора!"
+        )
 
 # --- КОМАНДА /STATS (РАНГ ГОРНИЛА) ---
 @dp.message(Command("stats"))
@@ -1196,5 +1289,6 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
+
 
 
