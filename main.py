@@ -140,7 +140,7 @@ AI_SYSTEM_PROMPT = (
 
 client = AsyncOpenAI(
     api_key=OPENAI_API_KEY, 
-    base_url="https://api.artemox.com/v1";
+    base_url="https://api.artemox.com/v1"
 )
 
 logging.basicConfig(level=logging.INFO)
@@ -1260,7 +1260,7 @@ async def moderate_and_chat(message: types.Message):
             await bot.send_chat_action(message.chat.id, action="typing")
             
             response = await client.chat.completions.create(
-                model="sonar",
+                model="sonar-reasoning",
                 messages=[
                     {"role": "system", "content": AI_SYSTEM_PROMPT},
                     {"role": "user", "content": clean_text}
@@ -1289,6 +1289,7 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
+
 
 
 
