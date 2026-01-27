@@ -721,7 +721,7 @@ async def duel_handler(callback: types.CallbackQuery):
             "p1": {"id": attacker_id, "name": att_name, "hp": 100, "class": None, "ace_streak": 0}, # Класс пока пустой
             "p2": {"id": defender_id, "name": def_name, "hp": 100, "class": None, "ace_streak": 0},
             "state": "choosing_classes",
-            "log": "Ожидание выбора классов..."
+            "log": "Ожидание выбора классов...",
             "lock": asyncio.Lock()
         }
 
@@ -1429,6 +1429,7 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
+
 
 
 
