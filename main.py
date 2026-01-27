@@ -1273,7 +1273,7 @@ async def moderate_and_chat(message: types.Message):
             await message.reply(ai_reply)
             
             # Ставим КД 10 минут
-            AI_COOLDOWN_TIME = datetime.now() + timedelta(minutes=1)
+            AI_COOLDOWN_TIME = datetime.now() + timedelta(minutes=5)
             
         except Exception as e:
             error_text = str(e)[:300]
@@ -1290,6 +1290,7 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
+
 
 
 
