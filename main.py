@@ -718,8 +718,8 @@ async def duel_handler(callback: types.CallbackQuery):
 
         # Инициализируем игру, но ХП пока не важны, главное ID и имена
         ACTIVE_DUELS[game_id] = {
-            "p1": {"id": attacker_id, "name": att_name, "hp": 100, "class": None}, # Класс пока пустой
-            "p2": {"id": defender_id, "name": def_name, "hp": 100, "class": None},
+            "p1": {"id": attacker_id, "name": att_name, "hp": 100, "class": None, "ace_streak": 0}, # Класс пока пустой
+            "p2": {"id": defender_id, "name": def_name, "hp": 100, "class": None, "ace_streak": 0},
             "state": "choosing_classes",
             "log": "Ожидание выбора классов..."
         }
@@ -828,12 +828,43 @@ async def duel_handler(callback: types.CallbackQuery):
         hit = False
         weapon_name = ""
 
+        if action != "duel_ace":
+            shooter["ace_streak"] = 0
+            
         if action == "duel_gg":
             weapon_name = "🔥 Голден Ган"
             if random.randint(1, 100) <= 9: hit = True; damage = 100
         elif action == "duel_ace":
             weapon_name = "♠️ Пиковый Туз"
-            if random.randint(1, 100) <= 55: hit = True; damage = 25
+            streak = shooter.get("ace_streak", 0)
+            
+            # База 55%
+            base_chance = 55
+            crit_chance = 0
+            
+            # Если есть заряд (попали в прошлый раз)
+            if streak == 1:
+                crit_chance = 10 # Шанс крита появляется
+            
+            roll = random.randint(1, 100)
+            
+            # 1. КРИТ (только если был заряд) -> Сброс
+            if roll <= crit_chance:
+                hit = True
+                damage = 50
+                shooter["ace_streak"] = 0 
+                
+            # 2. ОБЫЧНОЕ -> Заряд (или сохранение заряда)
+            elif roll <= (crit_chance + base_chance):
+                hit = True
+                damage = 34
+                shooter["ace_streak"] = 1 # Получаем/продлеваем заряд
+                
+            # 3. ПРОМАХ -> Сброс
+            else:
+                hit = False
+                damage = 0
+                shooter["ace_streak"] = 0
         elif action == "duel_nova":
             weapon_name = "🟣 Нова Бомба"
             roll = random.randint(1, 100)
@@ -846,12 +877,20 @@ async def duel_handler(callback: types.CallbackQuery):
         if hit:
             target["hp"] -= damage
             if target["hp"] < 0: target["hp"] = 0
-            if damage >= 100:
-                log_msg = f"💥 КРИТ! {shooter['name']} уничтожает врага с {weapon_name}!"
+            
+            # Фразы для Новы
+            if action == "duel_nova" and damage == 100:
+                log_msg = f"💥 КРИТ! {shooter['name']} кидает Нову и стирает врага в пыль на {damage} урона!"
+            
+            # Фразы для Туза (Memento Mori)
+            elif action == "duel_ace" and damage == 50:
+                log_msg = f"💀 MEMENTO MORI! {shooter['name']} зарядил пулю Светом! КРИТ {damage} урона!"
+            
+            # Обычное попадание
             else:
-                log_msg = f"💥 {shooter['name']} попадает с {weapon_name} (-{damage} HP)!"
+                log_msg = f"💥 Попадание! {shooter['name']} использует {weapon_name} и сносит {damage} HP!"
         else:
-            log_msg = f"💨 {shooter['name']} промазал с {weapon_name}."
+            log_msg = f"💨 Промах! {shooter['name']} промазал с {weapon_name}."
 
         # Проверка: Умер ли враг от выстрела?
         if target["hp"] <= 0:
@@ -1375,6 +1414,7 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
+
 
 
 
