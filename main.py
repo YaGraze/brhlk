@@ -857,7 +857,7 @@ async def duel_handler(callback: types.CallbackQuery):
             # 2. ОБЫЧНОЕ -> Заряд (или сохранение заряда)
             elif roll <= (crit_chance + base_chance):
                 hit = True
-                damage = 34
+                damage = 25
                 shooter["ace_streak"] = 1 # Получаем/продлеваем заряд
                 
             # 3. ПРОМАХ -> Сброс
@@ -1414,6 +1414,7 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
+
 
 
 
