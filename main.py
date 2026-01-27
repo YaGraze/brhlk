@@ -607,7 +607,7 @@ async def update_duel_message(callback: types.CallbackQuery, game_id):
     
     if current_class == "hunter":
         buttons = [
-            [InlineKeyboardButton(text="🔥 GG (12% / kill)", callback_data="duel_gg"),
+            [InlineKeyboardButton(text="🔥 GG (9% / kill)", callback_data="duel_gg"),
              InlineKeyboardButton(text="♠️ Ace (55% / 25dmg)", callback_data="duel_ace")]
         ]
     elif current_class == "warlock":
@@ -1443,6 +1443,7 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
+
 
 
 
