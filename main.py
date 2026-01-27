@@ -239,19 +239,27 @@ def update_stat(user_id, stat_type):
     pass 
 
 def get_rank_info(points):
+    """Функция расчета ранга"""
     tiers = [
         (50, "Страж"),
         (150, "Удаль"),
         (350, "Отвага"),
         (700, "Героизм"),
         (1500, "Величие"),
-        (float('inf'), "Легенда")
+        (3500, "Легенда"),
+        (float('inf'), "PVPGOD Барахолки")
     ]
+    
     for threshold, title in tiers:
         if points < threshold:
+            # Если порог - бесконечность, значит мы уже на макс ранге
+            if threshold == float('inf'):
+                return "PVPGOD Барахолки", 0
+            
             needed = int(threshold - points)
             return title, needed
-    return "Легенда", 0
+            
+    return "PVPGOD Барахолки", 0
 
 # ================= ОБЩИЕ ФУНКЦИИ =================
 
@@ -1435,6 +1443,7 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
+
 
 
 
