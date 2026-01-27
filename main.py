@@ -1260,7 +1260,7 @@ async def moderate_and_chat(message: types.Message):
             await bot.send_chat_action(message.chat.id, action="typing")
             
             response = await client.chat.completions.create(
-                model="sonar-reasoning",
+                model="gpt-4o-mini",
                 messages=[
                     {"role": "system", "content": AI_SYSTEM_PROMPT},
                     {"role": "user", "content": clean_text}
@@ -1276,7 +1276,8 @@ async def moderate_and_chat(message: types.Message):
             AI_COOLDOWN_TIME = datetime.now() + timedelta(minutes=5)
             
         except Exception as e:
-            await log_to_owner(f"❌ Ошибка ИИ: {e}")
+            error_text = str(e)[:300]
+            await log_to_owner(f"❌ Ошибка ИИ: error_text")
             # Если ошибка — не отвечаем пользователю, чтобы не спамить
             
 # ================= ЗАПУСК =================
@@ -1289,6 +1290,7 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
+
 
 
 
