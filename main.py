@@ -17,7 +17,7 @@ from openai import AsyncOpenAI
 # ================= НАСТРОЙКИ =================
 
 BOT_TOKEN = "8400087235:AAEE7FqXyq-94oGao_rA8-Ed4YtazrrMugs"
-OPENAI_API_KEY = "sk-VceymhbQITrkT8qoYFshaQ" 
+OPENAI_API_KEY = "sk-NrnI8sbvkV8b6TTkQjkXUQ" 
 
 BOT_GUIDE = "https://telegra.ph/Baraholka-Bot-01-22"
 LINK_TAPIR_GUIDE = "https://t.me/destinygoods/9814" 
@@ -140,7 +140,7 @@ AI_SYSTEM_PROMPT = (
 
 client = AsyncOpenAI(
     api_key=OPENAI_API_KEY, 
-    base_url="https://api.artemox.com/v1"
+    base_url="https://litellm.tokengate.ru/v1/chat/completions"
 )
 
 logging.basicConfig(level=logging.INFO)
@@ -1290,6 +1290,7 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
+
 
 
 
