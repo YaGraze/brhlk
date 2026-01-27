@@ -722,6 +722,7 @@ async def duel_handler(callback: types.CallbackQuery):
             "p2": {"id": defender_id, "name": def_name, "hp": 100, "class": None, "ace_streak": 0},
             "state": "choosing_classes",
             "log": "Ожидание выбора классов..."
+            "lock": asyncio.Lock()
         }
 
         # Меню выбора для ОБОИХ
@@ -757,6 +758,19 @@ async def duel_handler(callback: types.CallbackQuery):
             return
 
         game = ACTIVE_DUELS[game_id]
+
+        # ЗАХВАТЫВАЕМ БЛОКИРОВКУ
+        # Пока один игрок стреляет, второй будет ждать тут
+        async with game["lock"]:
+            
+            # ВНУТРИ БЛОКА ПОВТОРЯЕМ ПРОВЕРКИ
+            # (вдруг пока мы ждали, игра закончилась?)
+            if game_id not in ACTIVE_DUELS: return
+            
+            shooter_id = callback.from_user.id
+            if shooter_id != game["turn"]:
+                await callback.answer("Сейчас не твой ход!", show_alert=True)
+                return
         
         if game.get("state") != "fighting":
             await callback.answer("Бой еще не начался!", show_alert=True)
@@ -1415,6 +1429,7 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
+
 
 
 
