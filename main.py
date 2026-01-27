@@ -519,6 +519,12 @@ async def duel_command(message: types.Message):
     attacker = message.from_user
     defender = message.reply_to_message.from_user
 
+    # Защита от дуэлей с "Telegram" или ботами
+    if defender.id == 777000 or defender.is_bot:
+        msg = await message.reply("Ты вызываешь на бой саму Пустоту? Найди живого соперника (ответ на сообщение).")
+        asyncio.create_task(delete_later(msg, 5))
+        return
+    
     if defender.is_bot or defender.id == attacker.id:
         msg = await message.reply("Найди себе достойного противника.")
         asyncio.create_task(delete_later(msg, 5))
@@ -1429,6 +1435,7 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
+
 
 
 
