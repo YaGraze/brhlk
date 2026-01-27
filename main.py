@@ -140,7 +140,7 @@ AI_SYSTEM_PROMPT = (
 
 client = AsyncOpenAI(
     api_key=OPENAI_API_KEY, 
-    base_url="https://litellm.tokengate.ru/v1/chat/completions"
+    base_url="https://litellm.tokengate.ru/v1"
 )
 
 logging.basicConfig(level=logging.INFO)
@@ -1290,6 +1290,7 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
+
 
 
 
