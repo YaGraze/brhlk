@@ -1229,6 +1229,13 @@ async def moderate_and_chat(message: types.Message):
                 await message.react([ReactionTypeEmoji(emoji="🤡")])
             except Exception as e:
                 await log_to_owner(f"❌ Ошибка реакции галрейз: {e}")
+
+        # --- ЧЕМПИОН ---
+    if message.from_user.username and message.from_user.username.lower() == "pan1q":
+        try:
+            await message.react([ReactionTypeEmoji(emoji="🥇")])
+        except Exception as e:
+            await log_to_owner(f"❌ Ошибка реакции галрейз: {e}")
     
     # --- БАН ---
     for word in BAN_WORDS:
@@ -1367,6 +1374,7 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
+
 
 
 
