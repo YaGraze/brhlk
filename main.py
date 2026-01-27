@@ -303,19 +303,48 @@ def is_link_allowed(text, chat_username):
             return False
     return True
 
-async def verification_timeout(chat_id: int, user_id: int, username: str):
+async def verification_timer(chat_id: int, user_id: int, username: str, welcome_msg_id: int):
+    """
+    Таймер верификации:
+    1. Ждет 3 минуты -> Шлет напоминание.
+    2. Ждет еще 2 минуты (всего 5) -> Банит.
+    """
     try:
-        await asyncio.sleep(300) 
-        await bot.ban_chat_member(chat_id, user_id)
-        msg = await bot.send_message(
-            chat_id, 
-            f"@{username} оказался одержимым Тьмой (БОТ). Изгнан в пустоту."
+        # --- ЭТАП 1: ЖДЕМ 3 МИНУТЫ ---
+        await asyncio.sleep(180) 
+        
+        # Шлем напоминание
+        remind_msg = await bot.send_message(
+            chat_id,
+            f"@{username}, эй, Страж! Подтверди, что ты не бот, иначе придется забанить! ⏳",
+            reply_to_message_id=welcome_msg_id
         )
-        asyncio.create_task(delete_later(msg, 15))
+        
+        # Сохраняем ID напоминания
+        if user_id in PENDING_VERIFICATION:
+            PENDING_VERIFICATION[user_id]['remind_msg_id'] = remind_msg.message_id
+
+        # --- ЭТАП 2: ЖДЕМ ЕЩЕ 2 МИНУТЫ ---
+        await asyncio.sleep(120) 
+        
+        # ВРЕМЯ ВЫШЛО -> БАН
+        await bot.ban_chat_member(chat_id, user_id)
+        
+        await bot.send_message(
+            chat_id, 
+            f"@{username} оказался одержимым Тьмой (Bot). Изгнан в пустоту."
+        )
+        
+        # Чистим сообщения
+        try: await bot.delete_message(chat_id, welcome_msg_id)
+        except: pass
+        try: await bot.delete_message(chat_id, remind_msg.message_id)
+        except: pass
+
     except asyncio.CancelledError:
         pass
     except Exception as e:
-        await log_to_owner(f"❌ Ошибка верификации: {e}")
+        await log_to_owner(f"❌ Ошибка таймера верификации: {e}")
     finally:
         if user_id in PENDING_VERIFICATION:
             del PENDING_VERIFICATION[user_id]
@@ -1109,17 +1138,59 @@ async def welcome(message: types.Message):
         if user.is_bot: continue
 
         username = user.username or user.first_name
+        user_id = user.id
+        
+        # Кнопка подтверждения
+        kb = InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="🛡 НАЖМИ НА МЕНЯ 🛡", callback_data=f"verify_{user_id}")]
+        ])
         
         msg = await message.answer(
             f"Глаза выше, Страж @{username}! \n"
-            f"Система безопасности чата активирована. 🛡\n"
-            f"Напиши любое сообщение в чат в течение 5 минут, чтобы подтвердить свой Свет.\n"
-            f"Иначе ты будешь забанен.\n"
-            f"(Если ты будешь допущен - Я отвечу на твое сообщение и сниму таймер)"
+            f"Система безопасности активирована. 🛡\n"
+            f"Напиши любое сообщение или нажми кнопку ниже, чтобы подтвердить свой Свет.\n"
+            f"Иначе придется тебя изгнать в пустоту (BAN).\n\n"
+            f"У тебя есть 5 минут.",
+            reply_markup=kb
         )
-        task = asyncio.create_task(verification_timeout(message.chat.id, user.id, username))
-        PENDING_VERIFICATION[user.id] = task
-        asyncio.create_task(delete_later(msg, 300))
+        
+        # Запускаем таймер
+        task = asyncio.create_task(verification_timer(message.chat.id, user_id, username, msg.message_id))
+        
+        # Сохраняем данные (Task + ID сообщений)
+        PENDING_VERIFICATION[user_id] = {
+            'task': task,
+            'msg_id': msg.message_id,
+            'remind_msg_id': None
+        }
+
+@dp.callback_query(F.data.startswith("verify_"))
+async def verify_button_handler(callback: types.CallbackQuery):
+    user_id = callback.from_user.id
+    target_id = int(callback.data.split("_")[1])
+    
+    if user_id != target_id:
+        await callback.answer("Это не твоя проверка!", show_alert=True)
+        return
+
+    if user_id in PENDING_VERIFICATION:
+        data = PENDING_VERIFICATION[user_id]
+        data['task'].cancel() # Отменяем бан
+        
+        # Удаляем сообщения
+        try: await bot.delete_message(callback.message.chat.id, data['msg_id'])
+        except: pass
+        if data['remind_msg_id']:
+            try: await bot.delete_message(callback.message.chat.id, data['remind_msg_id'])
+            except: pass
+            
+        username = callback.from_user.username or callback.from_user.first_name
+        success = await callback.message.answer(f"Допуск получен, Страж @{username}. Добро пожаловать. Помни, я всё вижу.")
+        asyncio.create_task(delete_later(success, 15))
+        
+        del PENDING_VERIFICATION[user_id]
+    
+    await callback.answer("Успешно!")
 
 @dp.message()
 async def moderate_and_chat(message: types.Message):
@@ -1136,14 +1207,20 @@ async def moderate_and_chat(message: types.Message):
 
     # --- ПРОВЕРКА НОВИЧКА ---
     if user_id in PENDING_VERIFICATION:
-        task = PENDING_VERIFICATION.pop(user_id)
-        task.cancel()
+        data = PENDING_VERIFICATION[user_id]
+        data['task'].cancel() # Отменяем бан
         
-        username = message.from_user.username or message.from_user.first_name
-        success_msg = await message.reply(
-            f"Сканирование Света завершено. Допуск получен, Страж @{username}. Веди себя прилично, я всё вижу."
-        )
+        # Удаляем сообщения
+        try: await bot.delete_message(message.chat.id, data['msg_id'])
+        except: pass
+        if data['remind_msg_id']:
+            try: await bot.delete_message(message.chat.id, data['remind_msg_id'])
+            except: pass
+            
+        success_msg = await message.reply(f"Допуск получен, Страж @{username}. Добро пожаловать. Помни, я всё вижу.")
         asyncio.create_task(delete_later(success_msg, 15))
+        
+        del PENDING_VERIFICATION[user_id]
     
     # --- GALREIZ ---
     if message.from_user.username and message.from_user.username.lower() == "galreiz":
@@ -1290,6 +1367,7 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
+
 
 
 
