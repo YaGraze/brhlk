@@ -1190,24 +1190,19 @@ async def auto_comment_channel_post(message: types.Message):
             "<a href='https://vk.com/destinygoods'>Группа VK</a>\n"
             "<a href='http://t.me/destinygoods'>Канал ТГ</a>\n"
             "<a href='https://discord.gg/nPZTHaSADz'>Дискорд Сервер</a> (Лор, Спойлеры, Мода)\n\n"
-            "<b>👥 Чат в ТГ:</b>\n"
-            "<a href='https://t.me/+tvoGUHJrRqNiYzI6'>Наш чат</a> (Вопросы, Дуэли, Бот)\n"
-            "<a href='https://t.me/addstickers/BaraholkaDestiny2'>Стикерпак Барахолки</a>\n"
-            "<a href='http://telegra.ph/Baraholka-Bot-01-22'>Гайд по Боту и Дуэлям</a>\n\n"
-            "<b>📜 Правила:</b>\n"
-            "<a href='https://telegra.ph/Pravila-kanala-i-chata-09-18'>Правила канала и чата</a>\n"
-            "<a href='https://t.me/pan1q'>Разбан в группе, канале, чате</a>\n\n"
             "<b>🛡 Кланы D2 (вступление открытое):</b>\n"
             "• <a href='https://www.bungie.net/ru/ClanV2?groupid=5223067'>Baraholka Community Hub</a>\n"
             "• <a href='https://www.bungie.net/en/ClanV2?groupid=5237071'>Baraholka United</a>\n\n"
             "<b>📁 Другое:</b>\n"
             "• <a href='https://d2shop.ru/emblems'>Универсальные коды эмблем</a>\n"
             "• <a href='https://d2shop.ru/links'>Полезные Destiny 2 сайты</a>\n"
-            "• <a href='https://youtu.be/3Z9muUsJpEI?si=_ST2niN48Kmo_fZB'>Наше видео про Призрака</a>\n\n"
+            "• <a href='https://youtu.be/3Z9muUsJpEI?si=_ST2niN48Kmo_fZB'>Наше видео про Призрака</a>\n"
+            "<a href='http://telegra.ph/Baraholka-Bot-01-22'>Гайд по Боту и Дуэлям</a>\n\n"
             "<b>📞 Контакты:</b>\n"
-            "Вопросы, Заказы, Реклама: @llRGaming | <a href='https://vk.com/llrgaming'>VK</a>"
+            "Вопросы, Заказы, Реклама: @llRGaming | <a href='https://vk.com/llrgaming'>VK</a>\n"
             "Вопросы по дуэлям, боту, чату: @YaGraze\n"
-            "Предложить новость: @agent_xleb"
+            "Предложить новость: @agent_xleb\n"
+            "По поводу разбана: @pan1q"
         )
 
         # 3. Отправляем плейсхолдер
@@ -1468,6 +1463,7 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
+
 
 
 
