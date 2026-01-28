@@ -6,7 +6,6 @@ import random
 import json
 import sqlite3
 
-from aiogram.client.default import DefaultBotProperties
 from aiogram import Bot, Dispatcher, types, F, BaseMiddleware
 from aiogram.enums import ChatMemberStatus, ParseMode
 from aiogram.types import LinkPreviewOptions
@@ -145,10 +144,7 @@ client = AsyncOpenAI(
 )
 
 logging.basicConfig(level=logging.INFO)
-bot = Bot(
-    token=BOT_TOKEN,
-    default=DefaultBotProperties(parse_mode=ParseMode.HTML)
-)
+bot = Bot(token=BOT_TOKEN, parse_mode="HTML") 
 dp = Dispatcher()
 
 # ================= МИДЛВАРЬ (АНТИ-ФЛУД) =================
@@ -1472,6 +1468,7 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
+
 
 
 
