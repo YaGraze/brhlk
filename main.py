@@ -972,8 +972,8 @@ async def duel_handler(callback: types.CallbackQuery):
 
             # Проверка смерти
             if target["hp"] <= 0:
-            update_duel_stats(shooter['id'], is_winner=True) # shooter победил
-            update_duel_stats(target['id'], is_winner=False) # target проиграл
+            update_duel_stats(shooter['id'], is_winner=True)
+            update_duel_stats(target['id'], is_winner=False)
                 del ACTIVE_DUELS[game_id]
                 await callback.message.edit_text(f"🏆 <b>ПОБЕДА!</b>\n\n{log_msg}\n\n💀 {target['name']} повержен.", reply_markup=None)
                 await callback.answer()
@@ -1499,6 +1499,7 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
+
 
 
 
