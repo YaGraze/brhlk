@@ -1177,19 +1177,19 @@ async def auto_comment_channel_post(message: types.Message):
         # 2. Финальный текст (С красивыми ссылками)
         final_text = (
             "<b>🏷 Услуги:</b>\n\n"
-            "1) <a href='http://d2shop.ru/'>Магазин кодов</a> (Эмблемы, Шейдеры, Корабли, Сперроу, Эмоции)\n"
-            "2) <a href='https://d2shop.ru/klyuchi-steam'>Официальные ключи Steam</a>: Destiny, Marathon, и другие\n"
-            "3) <a href='https://d2shop.ru/uslugi-psn-xbox-egs-steam'>Услуги PSN, XBOX, EGS, STEAM</a> и другие\n"
-            "4) <a href='https://d2shop.ru/zakaz-mercha'>Заказ мерча по Destiny</a>, и не только\n"
-            "5) <a href='https://d2shop.ru/oplaty-servisov'>Оплаты сервисов, софта, подписок</a>\n"
-            "6) <a href='https://d2shop.ru/destiny-serebro'>Серебро</a>\n"
-            "7) <a href='https://d2shop.ru/dropy-mercha'>Дропы мерча</a>\n"
-            "8) <a href='https://vk.com/topic-213711546_48664680?offset=2060'>Отзывы о товарах и услугах</a>\n\n"
+            "• <a href='http://d2shop.ru/'>Магазин кодов</a> (Эмблемы, Шейдеры, Корабли, Сперроу, Эмоции)\n"
+            "• <a href='https://d2shop.ru/klyuchi-steam'>Официальные ключи Steam</a>: Destiny, Marathon, и другие\n"
+            "• <a href='https://d2shop.ru/uslugi-psn-xbox-egs-steam'>Услуги PSN, XBOX, EGS, STEAM</a> и другие\n"
+            "• <a href='https://d2shop.ru/zakaz-mercha'>Заказ мерча по Destiny</a>, и не только\n"
+            "• <a href='https://d2shop.ru/oplaty-servisov'>Оплаты сервисов, софта, подписок</a>\n"
+            "• <a href='https://d2shop.ru/destiny-serebro'>Серебро</a>\n"
+            "• <a href='https://d2shop.ru/dropy-mercha'>Дропы мерча</a>\n"
+            "• <a href='https://vk.com/topic-213711546_48664680?offset=2060'>Отзывы о товарах и услугах</a>\n\n"
             "➡️ <a href='https://t.me/llRGaming'>По любому вопросу/услуге</a>\n\n"
             "<b>🌐 Наши ресурсы:</b>\n"
-            "<a href='https://vk.com/destinygoods'>Группа VK</a>\n"
-            "<a href='http://t.me/destinygoods'>Канал ТГ</a>\n"
-            "<a href='https://discord.gg/nPZTHaSADz'>Дискорд Сервер</a> (Лор, Спойлеры, Мода)\n\n"
+            "• <a href='https://vk.com/destinygoods'>Группа VK</a>\n"
+            "• <a href='http://t.me/destinygoods'>Канал ТГ</a>\n"
+            "• <a href='https://discord.gg/nPZTHaSADz'>Дискорд Сервер</a> (Лор, Спойлеры, Мода)\n\n"
             "<b>🛡 Кланы D2 (вступление открытое):</b>\n"
             "• <a href='https://www.bungie.net/ru/ClanV2?groupid=5223067'>Baraholka Community Hub</a>\n"
             "• <a href='https://www.bungie.net/en/ClanV2?groupid=5237071'>Baraholka United</a>\n\n"
@@ -1463,6 +1463,7 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
+
 
 
 
