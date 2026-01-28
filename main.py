@@ -974,10 +974,10 @@ async def duel_handler(callback: types.CallbackQuery):
             if target["hp"] <= 0:
             update_duel_stats(shooter['id'], is_winner=True)
             update_duel_stats(target['id'], is_winner=False)
-                del ACTIVE_DUELS[game_id]
-                await callback.message.edit_text(f"🏆 <b>ПОБЕДА!</b>\n\n{log_msg}\n\n💀 {target['name']} повержен.", reply_markup=None)
-                await callback.answer()
-                return
+            del ACTIVE_DUELS[game_id]
+            await callback.message.edit_text(f"🏆 <b>ПОБЕДА!</b>\n\n{log_msg}\n\n💀 {target['name']} повержен.", reply_markup=None)
+            await callback.answer()
+            return
 
             # === ЛОГИКА ПРИЗЕМЛЕНИЯ ТИТАНА ===
             flying_titan_id = game.get("pending_crash")
@@ -1499,6 +1499,7 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
+
 
 
 
